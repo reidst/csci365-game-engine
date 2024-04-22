@@ -32,7 +32,8 @@ executable csci365-game-engine
     -- other-extensions:
     build-depends:
         base ^>=4.17.2.1,
-        csci365-game-engine
+        csci365-game-engine,
+        vty-crossplatform
 
     hs-source-dirs:   app
     default-language: Haskell2010
