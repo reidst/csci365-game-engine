@@ -5,8 +5,8 @@ synopsis:           A text-based game engine and an example dungeon crawler.
 -- description:
 license:            BSD-3-Clause
 license-file:       LICENSE
-author:             Katherine Reid, Ryan Fuller
-maintainer:         reidst@hendrix.edu, fullerra@hendrix.edu
+author:             Katherine Reid, Ryan Fuller, Elliot Allen
+maintainer:         reidst@hendrix.edu, fullerra@hendrix.edu, allened@hendrix.edu
 -- copyright:
 category:           Game
 build-type:         Simple
