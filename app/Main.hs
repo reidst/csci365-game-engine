@@ -1,18 +1,13 @@
 module Main where
 
--- import qualified MyLib (someFunc)
-
-import Graphics.Vty
+import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
+import Game (mkLevel, World, Player, Level, levelStart)
 
 main :: IO ()
 main = do
-    vty <- mkVty defaultConfig
-    let line0 = string (defAttr `withForeColor` green) "first line"
-        line1 = string (defAttr `withBackColor` blue) "second line"
-        img = line0 <-> line1
-        pic = picForImage img
-    update vty pic
-    e <- nextEvent vty
-    shutdown vty
-    print ("Last event was: " ++ show e)
+    vty <- mkVty V.defaultConfig
+    level0 <- mkLevel 1
+    let world0 = World (Player (levelStart level0)) level0
+    (_finalWorld, ()) <- execRWST play vty world0
+    V.shutdown vty
