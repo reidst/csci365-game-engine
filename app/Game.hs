@@ -116,6 +116,7 @@ processEvent = do
                 V.EvKey V.KUp    []             -> movePlayer 0 (-1)
                 V.EvKey V.KDown  []             -> movePlayer 0 1
                 V.EvKey (V.KChar 'h') []        -> usePotion
+                V.EvKey (V.KChar 'j') []        -> addPotion
                 _                               -> return ()
             return False
 
@@ -184,6 +185,12 @@ usePotion = do
     world <- get
     let Player (x, y) health potions = player world
     when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) (potions - 1) }
+
+addPotion :: Game ()
+addPotion = do
+    world <- get
+    let Player (x, y) health potions = player world
+    put $ world { player = Player (x, y) health (potions + 1) }
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
