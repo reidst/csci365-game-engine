@@ -115,13 +115,14 @@ processEvent = do
                 V.EvKey V.KRight []             -> movePlayer 1 0
                 V.EvKey V.KUp    []             -> movePlayer 0 (-1)
                 V.EvKey V.KDown  []             -> movePlayer 0 1
+                V.EvKey (V.KChar 'h') []        -> usePotion
                 _                               -> return ()
             return False
 
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health potions= player world
+    let Player (x, y) health potions = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
@@ -178,6 +179,12 @@ buildGeoImage geo =
 --
 -- Miscellaneous
 --
+usePotion :: Game ()
+usePotion = do
+    world <- get
+    let Player (x, y) health potions = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) (potions - 1) }
+
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
