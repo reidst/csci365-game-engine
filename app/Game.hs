@@ -13,7 +13,22 @@ import System.Random
 data Player = Player
     { playerCoord :: Coord
     , playerHealth :: Int
+    , currentWeapon :: Weapon
+    , playerPotions :: Int
+    , hasKey :: Bool
     } deriving (Show,Eq)
+
+data Monster = Monster
+    { monsterCoord :: Coord
+    , monsterHealth :: Int
+    , monsterDamage :: Int
+    , monsterName :: String
+    } deriving (Show, Eq)
+
+data Weapon = Weapon
+    { weaponName :: String
+    , weaponAttack :: Int
+    } deriving (Show, Eq)
 
 data World = World
     { player :: Player
@@ -46,8 +61,8 @@ initialPlayerHealth = 100
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 1
-    let world0 = World (Player (levelStart level0) initialPlayerHealth) level0
+    level0 <- mkLevel 4
+    let world0 = World (Player (levelStart level0) initialPlayerHealth (Weapon "Dagger" 12) 5 False) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -55,7 +70,7 @@ main = do
 -- difficulty means the level will have more rooms and cover a larger area.
 mkLevel :: Int -> IO Level
 mkLevel difficulty = do
-    let size = 80 * difficulty
+    let size = 15 * difficulty
     [levelWidth, levelHeight] <- replicateM 2 $ randomRIO (size,size)
     let randomP = (,) <$> randomRIO (2, levelWidth-3) <*> randomRIO (2, levelHeight-3)
     start <- randomP
@@ -117,13 +132,13 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health = player world
+    let Player (x, y) health weapon potions haskey = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health}
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey}
         _          -> return ()
 
 
