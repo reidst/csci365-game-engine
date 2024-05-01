@@ -133,13 +133,13 @@ updateDisplay = do
     -- determine offsets to place the player in the center of the level.
     (w,h) <- asks V.outputIface >>= liftIO . V.displayBounds
     thePlayer <- gets player
-    let playerInfo = playerInfoImage thePlayer
     let ox = (w `div` 2) - playerX thePlayer
         oy = (h `div` 2) - playerY thePlayer
     -- translate the world images to place the player in the center of the
     -- level.
     world' <- map (V.translate ox oy) <$> worldImages
-    let pic = V.picForLayers $ playerInfo : world'
+    let playerInfo = V.translate 0 (h-1) (playerInfoImage thePlayer)
+    let pic = V.picForLayers $ info : playerInfo : world'
     vty <- ask
     liftIO $ V.update vty pic
 
@@ -181,4 +181,4 @@ playerY :: Player -> Int
 playerY = snd . playerCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player))
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
