@@ -13,6 +13,7 @@ import System.Random
 data Player = Player
     { playerCoord :: Coord
     , playerHealth :: Int
+    , playerPotions :: Int
     } deriving (Show,Eq)
 
 data World = World
@@ -43,11 +44,14 @@ type Coord = (Int, Int)
 initialPlayerHealth :: Int
 initialPlayerHealth = 100
 
+initialPlayerPotions :: Int
+initialPlayerPotions = 3
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 1
-    let world0 = World (Player (levelStart level0) initialPlayerHealth) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerPotions) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -117,13 +121,13 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health = player world
+    let Player (x, y) health potions= player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health}
+        EmptySpace -> put $ world { player = Player (x',y') health potions}
         _          -> return ()
 
 
@@ -181,4 +185,4 @@ playerY :: Player -> Int
 playerY = snd . playerCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: X" )
