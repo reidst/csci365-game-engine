@@ -20,10 +20,14 @@ data Player = Player
 
 data Monster = Monster
     { monsterCoord :: Coord
-    , monsterHealth :: Int
-    , monsterDamage :: Int
-    , monsterName :: String
+    , monsterStats :: MonsterStats
+    , hasKey :: Bool
     } deriving (Show, Eq)
+
+data MonsterStats = MonsterStats
+    { monsterName :: String
+    , monsterHealth :: Int
+    , monsterDamage :: Int}
 
 data Weapon = Weapon
     { weaponName :: String
@@ -51,12 +55,19 @@ data LevelPiece
     | Rock
     deriving (Show, Eq)
 
+
 type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
 initialPlayerHealth :: Int
 initialPlayerHealth = 100
+
+possibleMonsters :: [MonsterStats]
+possibleMonsters = [MonsterStats "Goblin" 20 5,
+                    MonsterStats "Sentient Chair" 10 2,
+                    MonsterStats "Troll" 40 10,
+                    MonsterStats "Witch" 30 8]
 
 main :: IO ()
 main = do
@@ -154,6 +165,7 @@ updateDisplay = do
     -- level.
     world' <- map (V.translate ox oy) <$> worldImages
     let playerInfo = V.translate 0 (h-1) (playerInfoImage thePlayer)
+    -- add monsterInfo for the monsters in the room
     let pic = V.picForLayers $ info : playerInfo : world'
     vty <- ask
     liftIO $ V.update vty pic
