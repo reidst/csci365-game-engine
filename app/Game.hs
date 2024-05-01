@@ -12,6 +12,7 @@ import System.Random
 
 data Player = Player
     { playerCoord :: Coord
+    , playerHealth :: Int
     } deriving (Show,Eq)
 
 data World = World
@@ -39,11 +40,14 @@ type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
+initialPlayerHealth :: Int
+initialPlayerHealth = 100
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 1
-    let world0 = World (Player (levelStart level0)) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -113,14 +117,15 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) = player world
+    let Player (x, y) health = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') }
+        EmptySpace -> put $ world { player = Player (x',y') health}
         _          -> return ()
+
 
 updateDisplay :: Game ()
 updateDisplay = do
@@ -133,7 +138,8 @@ updateDisplay = do
     -- translate the world images to place the player in the center of the
     -- level.
     world' <- map (V.translate ox oy) <$> worldImages
-    let pic = V.picForLayers $ info : world'
+    let playerInfo = V.translate 0 (h-1) (playerInfoImage thePlayer)
+    let pic = V.picForLayers $ info : playerInfo : world'
     vty <- ask
     liftIO $ V.update vty pic
 
@@ -173,3 +179,6 @@ playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
+
+playerInfoImage :: Player -> V.Image
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
