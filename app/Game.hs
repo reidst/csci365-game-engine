@@ -1,4 +1,4 @@
-module Main where
+module Game where
 
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)

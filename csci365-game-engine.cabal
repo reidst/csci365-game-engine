@@ -28,7 +28,7 @@ library
 executable csci365-game-engine
     ghc-options: -threaded
     import:           warnings
-    main-is:          Game.hs
+    main-is:          Main.hs
     -- other-modules:
     -- other-extensions:
     build-depends:
