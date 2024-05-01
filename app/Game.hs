@@ -15,19 +15,20 @@ data Player = Player
     , playerHealth :: Int
     , currentWeapon :: Weapon
     , playerPotions :: Int
-    , hasKey :: Bool
+    , playerHasKey :: Bool
     } deriving (Show,Eq)
 
 data Monster = Monster
     { monsterCoord :: Coord
     , monsterStats :: MonsterStats
-    , hasKey :: Bool
+    , monsterHasKey :: Bool
     } deriving (Show, Eq)
 
 data MonsterStats = MonsterStats
     { monsterName :: String
     , monsterHealth :: Int
-    , monsterDamage :: Int}
+    , monsterDamage :: Int
+    } deriving (Show, Eq)
 
 data Weapon = Weapon
     { weaponName :: String
@@ -54,7 +55,6 @@ data LevelPiece
     = EmptySpace
     | Rock
     deriving (Show, Eq)
-
 
 type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
@@ -198,6 +198,10 @@ buildGeoImage geo =
                                            ]
                  ]
 
+getRandomMonster :: IO MonsterStats
+getRandomMonster = do
+    ri <- randomRIO (0, length possibleMonsters)
+    return $ possibleMonsters!!ri
 --
 -- Miscellaneous
 --
@@ -206,6 +210,12 @@ playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
+
+monsterX :: Monster -> Int
+monsterX = fst . monsterCoord
+
+monsterY :: Monster -> Int
+monsterY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
 playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
