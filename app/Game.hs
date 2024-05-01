@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTSyntax #-}
+
 module Main where
 
 import qualified Graphics.Vty as V
@@ -31,9 +33,10 @@ data Level = Level
     }
     deriving (Show,Eq)
 
-data LevelPiece
-    = EmptySpace
-    | Rock
+data LevelPiece where
+    EmptySpace :: LevelPiece
+    Rock       :: LevelPiece
+    Chest      :: Maybe Int -> LevelPiece
     deriving (Show, Eq)
 
 type Game = RWST V.Vty () World IO
@@ -81,13 +84,16 @@ addRoom :: Int
         -- ^The desired center of the new room.
         -> IO Geo
 addRoom levelWidth levelHeight geo (centerX, centerY) = do
-    size <- randomRIO (5,15)
+    size <- randomRIO (5,25)
     let xMin = max 1 (centerX - size)
         xMax = min (levelWidth - 1) (centerX + size)
         yMin = max 1 (centerY - size)
         yMax = min (levelHeight - 1) (centerY + size)
+    chestX <- randomRIO (xMin, xMax)
+    chestY <- randomRIO (yMin, yMax)
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
-    return (geo // room)
+        chest = [((chestX, chestY), Chest (Just 0))]
+    return (geo // room // chest)
 
 pieceA, dumpA :: V.Attr
 pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
@@ -102,7 +108,7 @@ play = do
 processEvent :: Game Bool
 processEvent = do
     k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey V.KEsc []
+    if k == V.EvKey (V.KChar 'q') []
         then return True
         else do
             case k of
@@ -157,6 +163,9 @@ worldImages = do
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.green) ' '
 imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo (Chest contents) = case contents of
+    Nothing -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '_'
+    Just _  -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
