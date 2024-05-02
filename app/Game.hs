@@ -165,7 +165,7 @@ generateChestContents = do
     else ChestWeapon <$> getRandomWeapon
 
 pieceA, dumpA :: V.Attr
-pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
+pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.black
 dumpA = V.defAttr `V.withStyle` V.reverseVideo
 
 play :: Game ()
@@ -267,17 +267,17 @@ worldImages = do
     return [playerImage, levelGeoImage theLevel]
 
 imageForGeo :: LevelPiece -> V.Image
-imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.green) ' '
+imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
 imageForGeo Rock = V.char V.defAttr 'X'
 imageForGeo (Chest ChestEmpty) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) 'X'
+    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) 'X'
 imageForGeo (Chest _) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
+    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) '?'
 imageForGeo (RMonster m) = case getMonsterName m of
-    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'G'
-    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
-    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'C'
-    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'T'
+    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'G'
+    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'W'
+    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'C'
+    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'T'
 imageForGeo (DoorPiece (Door False)) = V.char (V.defAttr `V.withForeColor` V.yellow `V.withBackColor` V.blue) 'D'
 imageForGeo (DoorPiece (Door True)) = V.char (V.defAttr `V.withBackColor` V.blue) ' '
 
