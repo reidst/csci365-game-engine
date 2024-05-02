@@ -99,7 +99,7 @@ initialPlayerWeapon = Weapon "Hand" 5
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 4
+    level0 <- mkLevel 8
     let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
@@ -139,16 +139,18 @@ addRoom :: Int
         -- ^The desired center of the new room.
         -> IO Geo
 addRoom levelWidth levelHeight geo (centerX, centerY) = do
-    size <- randomRIO (5,25)
+    size <- randomRIO (5,8)
     let xMin = max 1 (centerX - size)
-        xMax = min (levelWidth - 1) (centerX + size)
+        xMax = min (levelWidth - 2) (centerX + size)
         yMin = max 1 (centerY - size)
-        yMax = min (levelHeight - 1) (centerY + size)
+        yMax = min (levelHeight - 2) (centerY + size)
     chestX <- randomRIO (xMin, xMax)
-    chestY <- randomRIO (yMin, yMax)
+    chestX <- randomRIO (xMin, xMax - 1)
+    chestY <- randomRIO (yMin, yMax - 1)
     chestContents <- generateChestContents
     monsterX <- randomRIO (xMin, xMax)
-    monsterY <- randomRIO (yMin, yMax)
+    monsterX <- randomRIO (xMin, xMax - 1)
+    monsterY <- randomRIO (yMin, yMax - 1)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest chestContents)]
