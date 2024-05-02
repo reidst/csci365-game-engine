@@ -19,6 +19,7 @@ data Player = Player
     , currentWeapon :: Weapon
     , playerPotions :: Int
     , playerHasKey :: Bool
+    , playerAttackCounter :: Int
     } deriving (Show,Eq)
 
 data Monster = Monster
@@ -97,11 +98,14 @@ initialPlayerPotions = 3
 initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
+animationConstant :: Int
+animationConstant = 100
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 4
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant)) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -170,6 +174,7 @@ dumpA = V.defAttr `V.withStyle` V.reverseVideo
 play :: Game ()
 play = do
     liftIO $ C.threadDelay 1000
+    thePlayer <- gets player
     updateDisplay
     done <- processEvent
     unless done play
@@ -198,15 +203,15 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health weapon potions haskey = player world
+    let Player (x, y) health weapon potions haskey ani = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani }
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -216,7 +221,7 @@ movePlayer dx dy = do
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey
+            newPlayer = Player (x, y) health newWeapon potions haskey ani
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -231,7 +236,7 @@ movePlayer dx dy = do
                                                 levelEnd = levelEnd $ level world,
                                                 levelGeo = newGeo,
                                                 levelGeoImage = buildGeoImage newGeo }
-                                          put $ world { player = Player (x, y) health weapon potions haskey
+                                          put $ world { player = Player (x, y) health weapon potions haskey ani
                                                       , level = newLevel }
         _          -> return ()
 
@@ -313,26 +318,31 @@ getRandomWeapon = do
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health weapon potions key = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key}
+    let Player (x, y) health weapon potions key ani = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health weapon potions key = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) key }
+    let Player (x, y) health weapon potions key ani = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key ani }
 
 givePlayerKey :: Game ()
 givePlayerKey = do
     world <- get
-    let Player (x, y) health weapon potions _ = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) True }
+    let Player (x, y) health weapon potions _ ani = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True ani}
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
+
+playerAttacking :: Player -> Bool
+playerAttacking (Player _ _ _ _ _ a)
+    | a < (3 * animationConstant) = True
+    | otherwise = False
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
