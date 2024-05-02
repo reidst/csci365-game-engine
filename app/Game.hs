@@ -169,6 +169,7 @@ dumpA = V.defAttr `V.withStyle` V.reverseVideo
 
 play :: Game ()
 play = do
+    liftIO $ C.threadDelay 1000
     updateDisplay
     done <- processEvent
     unless done play
