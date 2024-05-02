@@ -95,8 +95,9 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
         yMax = min (levelHeight - 1) (centerY + size)
     chestX <- randomRIO (xMin, xMax)
     chestY <- randomRIO (yMin, yMax)
+    chestPotionCount <- randomRIO (1, 3)
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
-        chest = [((chestX, chestY), Chest (Just 0))]
+        chest = [((chestX, chestY), Chest (Just chestPotionCount))]
     return (geo // room // chest)
 
 pieceA, dumpA :: V.Attr
@@ -135,7 +136,17 @@ movePlayer dx dy = do
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health potions}
+        EmptySpace -> put $ world { player = Player (x',y') health potions }
+        Chest (Just potionCount) -> let
+            newPlayer = Player (x, y) health (potions + potionCount)
+            newGeo = levelGeo (level world) // [((x', y'), Chest Nothing)]
+            newLevel = Level {
+                levelStart = levelStart $ level world,
+                levelEnd = levelEnd $ level world,
+                levelGeo = newGeo,
+                levelGeoImage = buildGeoImage newGeo }
+            --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
+            in put $ world { player = newPlayer, level = newLevel }
         _          -> return ()
 
 
