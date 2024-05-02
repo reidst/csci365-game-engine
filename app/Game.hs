@@ -173,9 +173,11 @@ generateChestContents = do
     then ChestPotion <$> randomRIO (1, 3)
     else ChestWeapon <$> getRandomWeapon
 
-pieceA, dumpA :: V.Attr
-pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.black
-dumpA = V.defAttr `V.withStyle` V.reverseVideo
+playerA, rockA, monsterA, chestA :: V.Attr
+playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
+rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
+monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
+chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
 play :: Game ()
 play = do
@@ -267,23 +269,23 @@ worldImages :: Game [V.Image]
 worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
-    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char pieceA '@')
+    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char playerA '@')
     return [playerImage, levelGeoImage theLevel]
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
-imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo Rock = V.char rockA 'X'
 imageForGeo (Chest ChestEmpty) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) 'X'
+    V.char chestA 'X'
 imageForGeo (Chest _) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) '?'
+    V.char chestA '?'
 imageForGeo (RMonster m) = case getMonsterName m of
-    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'G'
-    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'W'
-    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'C'
-    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'T'
-imageForGeo (DoorPiece (Door False)) = V.char (V.defAttr `V.withForeColor` V.yellow `V.withBackColor` V.blue) 'D'
-imageForGeo (DoorPiece (Door True)) = V.char (V.defAttr `V.withBackColor` V.blue) ' '
+    "Goblin"         -> V.char monsterA 'G'
+    "Witch"          -> V.char monsterA 'W'
+    "Sentient Chair" -> V.char monsterA 'C'
+    "Troll"          -> V.char monsterA 'T'
+imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
+imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
 
 
 buildGeoImage :: Geo -> V.Image
