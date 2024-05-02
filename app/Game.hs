@@ -74,6 +74,12 @@ type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
+chestFrequency :: Int
+chestFrequency = 15
+
+monsterFrequency :: Int
+monsterFrequency = 50
+
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Sentient Chair" 10 2,
@@ -144,18 +150,21 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
         xMax = min (levelWidth - 2) (centerX + size)
         yMin = max 1 (centerY - size)
         yMax = min (levelHeight - 2) (centerY + size)
-    chestX <- randomRIO (xMin, xMax)
+    hasChest <- (< chestFrequency) <$> randomRIO (0,99)
     chestX <- randomRIO (xMin, xMax - 1)
     chestY <- randomRIO (yMin, yMax - 1)
     chestContents <- generateChestContents
-    monsterX <- randomRIO (xMin, xMax)
+    hasMonster <- (< monsterFrequency) <$> randomRIO (0, 99)
     monsterX <- randomRIO (xMin, xMax - 1)
     monsterY <- randomRIO (yMin, yMax - 1)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest chestContents)]
         monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
-    return (geo // room // chest // monster)
+    return $ geo
+          // room
+          // (if hasChest then chest else [])
+          // (if hasMonster then monster else [])
 
 generateChestContents :: IO ChestContents
 generateChestContents = do
