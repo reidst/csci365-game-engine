@@ -308,4 +308,4 @@ monstersY :: Monster -> Int
 monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: X" )
