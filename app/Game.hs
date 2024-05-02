@@ -5,6 +5,7 @@ module Main where
 import qualified Control.Concurrent as C
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
+import Prelude hiding (Right)
 
 import Data.Array
 
@@ -21,6 +22,7 @@ data Player = Player
     , playerHasKey :: Bool
     , playerAttackCounter :: Int
     , score :: Int
+    , playerDirection :: Direction
     } deriving (Show,Eq)
 
 data Monster = Monster
@@ -74,6 +76,13 @@ data ChestContents where
     ChestEmpty  :: ChestContents
     deriving (Show, Eq)
 
+data Direction where
+    Up :: Direction
+    Down :: Direction
+    Left :: Direction
+    Right :: Direction
+    deriving (Show, Eq)
+
 type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
@@ -115,7 +124,7 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 8
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant) 0) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant) 0 Right) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -217,22 +226,22 @@ processEvent = do
                         V.EvKey (V.KChar 'h') []        -> usePotion
                         V.EvKey (V.KChar 'j') []        -> addPotion
                         V.EvKey (V.KChar 'k') []        -> givePlayerKey
-                        V.EvKey (V.KChar 'a') []        -> playerBeginAttack thePlayer
+                        V.EvKey (V.KChar ' ') []        -> playerBeginAttack thePlayer
                         _                               -> return ()
                     return False
 
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health weapon potions haskey ani score = player world
+    let Player (x, y) health weapon potions haskey ani score dir = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score dir }
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25)
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25) dir
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -243,7 +252,7 @@ movePlayer dx dy = do
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25)
+            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25) dir
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -260,10 +269,10 @@ movePlayer dx dy = do
                 levelGeo = newGeo,
                 doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions haskey ani score, level = newLevel }
+            put $ world { player = Player (x, y) health weapon potions haskey ani score dir, level = newLevel }
         DoorPiece (Door True) -> do
             newLevel <- liftIO $ mkLevel 8
-            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100), level = newLevel}
+            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) dir, level = newLevel}
         _ -> return ()
 
 
@@ -345,20 +354,20 @@ getRandomWeapon = do
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health weapon potions key ani score = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score}
+    let Player (x, y) health weapon potions key ani score dir = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score dir}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health weapon potions key ani score = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) key ani score}
+    let Player (x, y) health weapon potions key ani score dir = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key ani score dir}
 
 givePlayerKey :: Game ()
 givePlayerKey = do
     world <- get
-    let Player (x, y) health weapon potions _ ani score = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) True ani score}
+    let Player (x, y) health weapon potions _ ani score dir = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True ani score dir}
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
@@ -367,24 +376,24 @@ playerY :: Player -> Int
 playerY = snd . playerCoord
 
 playerAttacking :: Player -> Bool
-playerAttacking (Player _ _ _ _ _ a _)
+playerAttacking (Player _ _ _ _ _ a _ _)
     | a < (3 * animationConstant) = True
     | otherwise = False
 
 incrementAttack :: Player -> Game ()
-incrementAttack (Player coord health weapon potions haskey a score) = do
+incrementAttack (Player coord health weapon potions haskey a score dir) = do
     world <- get
-    let Player (x, y) health weapon potions haskey ani score = player world
-    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1) score}
+    let Player (x, y) health weapon potions haskey ani score dir = player world
+    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1) score dir}
 
 playerBeginAttack :: Player -> Game ()
-playerBeginAttack (Player coords health weapon potions haskey ani score) = do
+playerBeginAttack (Player coords health weapon potions haskey ani score dir) = do
     world <- get
-    let Player (x, y) health weapon potions haskey _ score = player world
-    put $ world { player = Player (x, y) health weapon potions haskey 0 score}
+    let Player (x, y) health weapon potions haskey _ score dir = player world
+    put $ world { player = Player (x, y) health weapon potions haskey 0 score dir}
 
 generateSword :: Player -> V.Image
-generateSword (Player (x, y) _ _ _ _ a _)
+generateSword (Player (x, y) _ _ _ _ a _ dir)
     | (a >= 300) = V.emptyImage
     | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char swordA '\\')
     | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char swordA '-')
