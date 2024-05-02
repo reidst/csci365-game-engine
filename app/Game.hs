@@ -15,8 +15,27 @@ import System.Random
 data Player = Player
     { playerCoord :: Coord
     , playerHealth :: Int
+    , currentWeapon :: Weapon
     , playerPotions :: Int
+    , playerHasKey :: Bool
     } deriving (Show,Eq)
+
+data Monster = Monster
+    { monsterCoord :: Coord
+    , monsterStats :: MonsterStats
+    , monsterHasKey :: Bool
+    } deriving (Show, Eq)
+
+data MonsterStats = MonsterStats
+    { monsterName :: String
+    , monsterHealth :: Int
+    , monsterDamage :: Int
+    } deriving (Show, Eq)
+
+data Weapon = Weapon
+    { weaponName :: String
+    , weaponAttack :: Int
+    } deriving (Show, Eq)
 
 data World = World
     { player :: Player
@@ -38,6 +57,7 @@ data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
     Chest      :: Maybe Int -> LevelPiece
+    RMonster    :: Monster -> LevelPiece
     deriving (Show, Eq)
 
 type Game = RWST V.Vty () World IO
@@ -47,14 +67,20 @@ type Coord = (Int, Int)
 initialPlayerHealth :: Int
 initialPlayerHealth = 100
 
+possibleMonsters :: [MonsterStats]
+possibleMonsters = [MonsterStats "Goblin" 20 5,
+                    MonsterStats "Sentient Chair" 10 2,
+                    MonsterStats "Troll" 40 10,
+                    MonsterStats "Witch" 30 8]
+
 initialPlayerPotions :: Int
 initialPlayerPotions = 3
 
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 1
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerPotions) level0
+    level0 <- mkLevel 4
+    let world0 = World (Player (levelStart level0) initialPlayerHealth (Weapon "Dagger" 12) initialPlayerPotions False) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -62,7 +88,7 @@ main = do
 -- difficulty means the level will have more rooms and cover a larger area.
 mkLevel :: Int -> IO Level
 mkLevel difficulty = do
-    let size = 80 * difficulty
+    let size = 15 * difficulty
     [levelWidth, levelHeight] <- replicateM 2 $ randomRIO (size,size)
     let randomP = (,) <$> randomRIO (2, levelWidth-3) <*> randomRIO (2, levelHeight-3)
     start <- randomP
@@ -96,9 +122,13 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
     chestX <- randomRIO (xMin, xMax)
     chestY <- randomRIO (yMin, yMax)
     chestPotionCount <- randomRIO (1, 3)
+    monsterX <- randomRIO (xMin, xMax)
+    monsterY <- randomRIO (yMin, yMax)
+    randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest (Just chestPotionCount))]
-    return (geo // room // chest)
+        monster = [((monsterX, monsterY), (RMonster (Monster (monsterX, monsterY) randMonster (False))))]
+    return (geo // room // chest // monster)
 
 pieceA, dumpA :: V.Attr
 pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
@@ -130,15 +160,15 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health potions = player world
+    let Player (x, y) health weapon potions haskey = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health potions }
+        EmptySpace -> put $ world { player = Player (x',y') health potions haskey }
         Chest (Just potionCount) -> let
-            newPlayer = Player (x, y) health (potions + potionCount)
+            newPlayer = Player (x, y) health (potions + potionCount) haskey
             newGeo = levelGeo (level world) // [((x', y'), Chest Nothing)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -162,6 +192,7 @@ updateDisplay = do
     -- level.
     world' <- map (V.translate ox oy) <$> worldImages
     let playerInfo = V.translate 0 (h-1) (playerInfoImage thePlayer)
+    -- add monsterInfo for the monsters in the room
     let pic = V.picForLayers $ info : playerInfo : world'
     vty <- ask
     liftIO $ V.update vty pic
@@ -183,6 +214,11 @@ imageForGeo Rock = V.char V.defAttr 'X'
 imageForGeo (Chest contents) = case contents of
     Nothing -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '_'
     Just _  -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
+imageForGeo (RMonster m) = case getMonsterName m of
+    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'G'
+    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
+    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'C'
+    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'T'
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
@@ -197,26 +233,41 @@ buildGeoImage geo =
                                            ]
                  ]
 
+getRandomMonster :: IO MonsterStats
+getRandomMonster = do
+    ri <- randomRIO (0, (length possibleMonsters) - 1)
+    return $ (possibleMonsters !! ri)
+
+getMonsterName :: Monster -> String
+getMonsterName (Monster _ (MonsterStats name _ _) _) = name
+    
 --
 -- Miscellaneous
 --
+
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health potions = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) (potions - 1) }
+    let Player (x, y) health weapon potions key = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health potions = player world
-    put $ world { player = Player (x, y) health (potions + 1) }
+    let Player (x, y) health weapon potions key = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key }
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
+
+monstersX :: Monster -> Int
+monstersX = fst . monsterCoord
+
+monstersY :: Monster -> Int
+monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
 playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: X" )
