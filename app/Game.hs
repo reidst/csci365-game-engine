@@ -47,6 +47,7 @@ data Level = Level
     { levelStart :: Coord
     , levelEnd :: Coord
     , levelGeo :: Geo
+    , doorCoord :: Coord
     -- building the geo image is expensive. Cache it. Though VTY should go
     -- through greater lengths to avoid the need to cache images.
     , levelGeoImage :: V.Image
@@ -122,10 +123,10 @@ mkLevel difficulty = do
     -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
-    (doorX, doorY) <- randomRIO (head emptySpaces, last emptySpaces)
-    let door = [((doorX, doorY), DoorPiece (Door False))]
+    doorCoord <- randomRIO (head emptySpaces, last emptySpaces)
+    let door = [(doorCoord, DoorPiece (Door False))]
 
-    return $ Level start end (geo // door) (buildGeoImage (geo // door))
+    return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
 
 -- |Add a room to a geography and return a new geography.  Adds a
@@ -207,6 +208,7 @@ movePlayer dx dy = do
                 levelStart = levelStart $ level world,
                 levelEnd = levelEnd $ level world,
                 levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
@@ -217,18 +219,22 @@ movePlayer dx dy = do
                 levelStart = levelStart $ level world,
                 levelEnd = levelEnd $ level world,
                 levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
         DoorPiece (Door False) -> when haskey $ do
-                                          let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
-                                          let newLevel = Level {
-                                                levelStart = levelStart $ level world,
-                                                levelEnd = levelEnd $ level world,
-                                                levelGeo = newGeo,
-                                                levelGeoImage = buildGeoImage newGeo }
-                                          put $ world { player = Player (x, y) health weapon potions haskey
-                                                      , level = newLevel }
-        _          -> return ()
+            let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
+            let newLevel = Level {
+                levelStart = levelStart $ level world,
+                levelEnd = levelEnd $ level world,
+                levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
+                levelGeoImage = buildGeoImage newGeo }
+            put $ world { player = Player (x, y) health weapon potions haskey, level = newLevel }
+        DoorPiece (Door True) -> do
+            newLevel <- liftIO $ mkLevel 4 
+            put $ world { player = Player (levelStart newLevel) health weapon potions False, level = newLevel}
+        _ -> return ()
 
 
 updateDisplay :: Game ()
@@ -290,7 +296,7 @@ buildGeoImage geo =
 
 getRandomMonster :: IO MonsterStats
 getRandomMonster = do
-    ri <- randomRIO (0, (length possibleMonsters) - 1)
+    ri <- randomRIO (0, length possibleMonsters - 1)
     return $ (possibleMonsters !! ri)
 
 getMonsterName :: Monster -> String
