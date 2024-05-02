@@ -143,7 +143,7 @@ play = do
 processEvent :: Game Bool
 processEvent = do
     k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey (V.KChar 'q') []
+    if k == V.EvKey V.KEsc []
         then return True
         else do
             case k of
