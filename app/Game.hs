@@ -124,7 +124,7 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 8
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant) 0 Right) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant) 0 Right) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -403,10 +403,19 @@ getDirection x y
 generateSword :: Player -> V.Image
 generateSword (Player (x, y) _ _ _ _ a _ dir)
     | (a >= 300) = V.emptyImage
-    | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char swordA '\\')
-    | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char swordA '-')
-    | (a > 0) && (a <= 100) = V.translate (x + 1) (y - 1) (V.char swordA '/')
-    | otherwise = V.translate (x + 1) y (V.char swordA ' ')
+    | (dir == Right) && (a > 200) && (a < 300)  = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Right) && (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char swordA '-')
+    | (dir == Right) && (a > 0) && (a <= 100)   = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Left) && (a > 200) && (a < 300)   = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Left) && (a > 100) && (a <= 200)  = V.translate (x - 1) (y) (V.char swordA '-')
+    | (dir == Left) && (a > 0) && (a <= 100)    = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | (dir == Down) && (a > 200) && (a < 300)   = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Down) && (a > 100) && (a <= 200)  = V.translate (x) (y + 1) (V.char swordA '|')
+    | (dir == Down) && (a > 0) && (a <= 100)    = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Up) && (a > 200) && (a < 300)     = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Up) && (a > 100) && (a <= 200)    = V.translate (x) (y - 1) (V.char swordA '|')
+    | (dir == Up) && (a > 0) && (a <= 100)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | otherwise = V.emptyImage
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
