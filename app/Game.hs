@@ -56,8 +56,14 @@ data Level = Level
 data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
-    Chest      :: Maybe Int -> LevelPiece
-    RMonster    :: Monster -> LevelPiece
+    Chest      :: ChestContents -> LevelPiece
+    RMonster   :: Monster -> LevelPiece
+    deriving (Show, Eq)
+
+data ChestContents where
+    ChestPotion :: Int -> ChestContents
+    ChestWeapon :: Weapon -> ChestContents
+    ChestEmpty  :: ChestContents
     deriving (Show, Eq)
 
 type Game = RWST V.Vty () World IO
@@ -71,8 +77,7 @@ possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Witch" 30 8]
 
 possibleWeapons :: [Weapon]
-possibleWeapons = [Weapon "Hand" 5,
-                   Weapon "Oak Staff" 8,
+possibleWeapons = [Weapon "Oak Staff" 8,
                    Weapon "Dagger" 12,
                    Weapon "Magic Staff" 18,
                    Weapon "Claymore" 24,
@@ -85,7 +90,7 @@ initialPlayerPotions :: Int
 initialPlayerPotions = 3
 
 initialPlayerWeapon :: Weapon
-initialPlayerWeapon = head possibleWeapons
+initialPlayerWeapon = Weapon "Hand" 5
 
 main :: IO ()
 main = do
@@ -132,14 +137,21 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
         yMax = min (levelHeight - 1) (centerY + size)
     chestX <- randomRIO (xMin, xMax)
     chestY <- randomRIO (yMin, yMax)
-    chestPotionCount <- randomRIO (1, 3)
+    chestContents <- generateChestContents
     monsterX <- randomRIO (xMin, xMax)
     monsterY <- randomRIO (yMin, yMax)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
-        chest = [((chestX, chestY), Chest (Just chestPotionCount))]
+        chest = [((chestX, chestY), Chest chestContents)]
         monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
     return (geo // room // chest // monster)
+
+generateChestContents :: IO ChestContents
+generateChestContents = do
+    potionWeapon <- randomRIO (0, 2) :: IO Int
+    if even potionWeapon
+    then ChestPotion <$> randomRIO (1, 3)
+    else ChestWeapon <$> getRandomWeapon
 
 pieceA, dumpA :: V.Attr
 pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
@@ -154,7 +166,7 @@ play = do
 processEvent :: Game Bool
 processEvent = do
     k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey (V.KChar 'q') []
+    if k == V.EvKey V.KEsc []
         then return True
         else do
             case k of
@@ -178,15 +190,24 @@ movePlayer dx dy = do
     -- always Rock
     case levelGeo (level world) ! (x',y') of
         EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey }
-        Chest (Just potionCount) -> let
+        Chest (ChestPotion potionCount) -> let
             newPlayer = Player (x, y) health weapon (potions + potionCount) haskey
-            newGeo = levelGeo (level world) // [((x', y'), Chest Nothing)]
+            newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
                 levelEnd = levelEnd $ level world,
                 levelGeo = newGeo,
                 levelGeoImage = buildGeoImage newGeo }
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
+            in put $ world { player = newPlayer, level = newLevel }
+        Chest (ChestWeapon newWeapon) -> let
+            newPlayer = Player (x, y) health newWeapon potions haskey
+            newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
+            newLevel = Level {
+                levelStart = levelStart $ level world,
+                levelEnd = levelEnd $ level world,
+                levelGeo = newGeo,
+                levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
         _          -> return ()
 
@@ -222,9 +243,10 @@ worldImages = do
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.green) ' '
 imageForGeo Rock = V.char V.defAttr 'X'
-imageForGeo (Chest contents) = case contents of
-    Nothing -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '_'
-    Just _  -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
+imageForGeo (Chest ChestEmpty) =
+    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) 'X'
+imageForGeo (Chest _) =
+    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
 imageForGeo (RMonster m) = case getMonsterName m of
     "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'G'
     "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
