@@ -54,8 +54,9 @@ data Level = Level
     deriving (Show,Eq)
 
 data LevelPiece where
-    EmptySpace  :: LevelPiece
-    Rock        :: LevelPiece
+    EmptySpace :: LevelPiece
+    Rock       :: LevelPiece
+    Chest      :: Maybe Int -> LevelPiece
     RMonster    :: Monster -> LevelPiece
     deriving (Show, Eq)
 
@@ -113,17 +114,21 @@ addRoom :: Int
         -- ^The desired center of the new room.
         -> IO Geo
 addRoom levelWidth levelHeight geo (centerX, centerY) = do
-    size <- randomRIO (5,15)
+    size <- randomRIO (5,25)
     let xMin = max 1 (centerX - size)
         xMax = min (levelWidth - 1) (centerX + size)
         yMin = max 1 (centerY - size)
         yMax = min (levelHeight - 1) (centerY + size)
+    chestX <- randomRIO (xMin, xMax)
+    chestY <- randomRIO (yMin, yMax)
+    chestPotionCount <- randomRIO (1, 3)
     monsterX <- randomRIO (xMin, xMax)
     monsterY <- randomRIO (yMin, yMax)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
+        chest = [((chestX, chestY), Chest (Just chestPotionCount))]
         monster = [((monsterX, monsterY), (RMonster (Monster (monsterX, monsterY) randMonster (False))))]
-    return (geo // room // monster)
+    return (geo // room // chest // monster)
 
 pieceA, dumpA :: V.Attr
 pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
@@ -161,7 +166,17 @@ movePlayer dx dy = do
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey}
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey }
+        Chest (Just potionCount) -> let
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey
+            newGeo = levelGeo (level world) // [((x', y'), Chest Nothing)]
+            newLevel = Level {
+                levelStart = levelStart $ level world,
+                levelEnd = levelEnd $ level world,
+                levelGeo = newGeo,
+                levelGeoImage = buildGeoImage newGeo }
+            --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
+            in put $ world { player = newPlayer, level = newLevel }
         _          -> return ()
 
 
@@ -196,6 +211,9 @@ worldImages = do
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.green) ' '
 imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo (Chest contents) = case contents of
+    Nothing -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '_'
+    Just _  -> V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.green) '?'
 imageForGeo (RMonster m) = case getMonsterName m of
     "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'G'
     "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
