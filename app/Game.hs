@@ -72,6 +72,9 @@ possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Troll" 40 10,
                     MonsterStats "Witch" 30 8]
 
+initialPlayerPotions :: Int
+initialPlayerPotions = 3
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
@@ -144,6 +147,8 @@ processEvent = do
                 V.EvKey V.KRight []             -> movePlayer 1 0
                 V.EvKey V.KUp    []             -> movePlayer 0 (-1)
                 V.EvKey V.KDown  []             -> movePlayer 0 1
+                V.EvKey (V.KChar 'h') []        -> usePotion
+                V.EvKey (V.KChar 'j') []        -> addPotion
                 _                               -> return ()
             return False
 
@@ -222,6 +227,18 @@ getMonsterName (Monster _ (MonsterStats name _ _) _) = name
 -- Miscellaneous
 --
 
+usePotion :: Game ()
+usePotion = do
+    world <- get
+    let Player (x, y) health potions = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) (potions - 1) }
+
+addPotion :: Game ()
+addPotion = do
+    world <- get
+    let Player (x, y) health potions = player world
+    put $ world { player = Player (x, y) health (potions + 1) }
+
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
@@ -235,4 +252,4 @@ monstersY :: Monster -> Int
 monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: X" )
