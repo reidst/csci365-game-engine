@@ -79,7 +79,7 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 4
-    let world0 = World (Player (levelStart level0) initialPlayerHealth (Weapon "Dagger" 12) 5 False) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth (Weapon "Dagger" 12) initialPlayerPotions False) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -217,8 +217,8 @@ buildGeoImage geo =
 
 getRandomMonster :: IO MonsterStats
 getRandomMonster = do
-    ri <- randomRIO (0, length possibleMonsters)
-    return $ (possibleMonsters!!ri)
+    ri <- randomRIO (0, (length possibleMonsters) - 1)
+    return $ (possibleMonsters !! ri)
 
 getMonsterName :: Monster -> String
 getMonsterName (Monster _ (MonsterStats name _ _) _) = name
@@ -230,14 +230,14 @@ getMonsterName (Monster _ (MonsterStats name _ _) _) = name
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health potions = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) (potions - 1) }
+    let Player (x, y) health weapon potions key = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health potions = player world
-    put $ world { player = Player (x, y) health (potions + 1) }
+    let Player (x, y) health weapon potions key = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key }
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
