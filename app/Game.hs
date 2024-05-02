@@ -53,11 +53,15 @@ data Level = Level
     }
     deriving (Show,Eq)
 
+newtype Door = Door Bool
+    deriving (Show,Eq)
+
 data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
     Chest      :: Maybe Int -> LevelPiece
     RMonster    :: Monster -> LevelPiece
+    DoorPiece :: Door -> LevelPiece
     deriving (Show, Eq)
 
 type Game = RWST V.Vty () World IO
@@ -96,12 +100,17 @@ mkLevel difficulty = do
     -- first the base geography: all rocks
     let baseGeo = array ((0,0), (levelWidth-1, levelHeight-1))
                         [((x,y),Rock) | x <- [0..levelWidth-1], y <- [0..levelHeight-1]]
-    -- next the empty spaces that make the rooms
+        -- next the empty spaces that make the rooms
     -- for this we generate a number of center points
     centers <- replicateM (2 ^ difficulty + difficulty) randomP
     -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
-    return $ Level start end geo (buildGeoImage geo)
+    let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
+    (doorX, doorY) <- randomRIO (head emptySpaces, last emptySpaces)
+    let door = [((doorX, doorY), DoorPiece (Door False))]
+
+    return $ Level start end (geo // door) (buildGeoImage (geo // door))
+
 
 -- |Add a room to a geography and return a new geography.  Adds a
 -- randomly-sized room centered at the specified coordinates.
@@ -219,6 +228,9 @@ imageForGeo (RMonster m) = case getMonsterName m of
     "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
     "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'C'
     "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'T'
+imageForGeo (DoorPiece (Door False)) = V.char (V.defAttr `V.withForeColor` V.yellow `V.withBackColor` V.blue) 'D'
+imageForGeo (DoorPiece (Door True)) = V.char (V.defAttr `V.withBackColor` V.blue) ' '
+
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
@@ -240,7 +252,7 @@ getRandomMonster = do
 
 getMonsterName :: Monster -> String
 getMonsterName (Monster _ (MonsterStats name _ _) _) = name
-    
+
 --
 -- Miscellaneous
 --
