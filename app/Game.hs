@@ -64,23 +64,34 @@ type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
-initialPlayerHealth :: Int
-initialPlayerHealth = 100
-
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Sentient Chair" 10 2,
                     MonsterStats "Troll" 40 10,
                     MonsterStats "Witch" 30 8]
 
+possibleWeapons :: [Weapon]
+possibleWeapons = [Weapon "Hand" 5,
+                   Weapon "Oak Staff" 8,
+                   Weapon "Dagger" 12,
+                   Weapon "Magic Staff" 18,
+                   Weapon "Claymore" 24,
+                   Weapon "Orb of Disassembly" 50]
+
+initialPlayerHealth :: Int
+initialPlayerHealth = 100
+
 initialPlayerPotions :: Int
 initialPlayerPotions = 3
+
+initialPlayerWeapon :: Weapon
+initialPlayerWeapon = head possibleWeapons
 
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 4
-    let world0 = World (Player (levelStart level0) initialPlayerHealth (Weapon "Dagger" 12) initialPlayerPotions False) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -127,7 +138,7 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest (Just chestPotionCount))]
-        monster = [((monsterX, monsterY), (RMonster (Monster (monsterX, monsterY) randMonster (False))))]
+        monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
     return (geo // room // chest // monster)
 
 pieceA, dumpA :: V.Attr
@@ -143,7 +154,7 @@ play = do
 processEvent :: Game Bool
 processEvent = do
     k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey V.KEsc []
+    if k == V.EvKey (V.KChar 'q') []
         then return True
         else do
             case k of
@@ -240,7 +251,12 @@ getRandomMonster = do
 
 getMonsterName :: Monster -> String
 getMonsterName (Monster _ (MonsterStats name _ _) _) = name
-    
+
+getRandomWeapon :: IO Weapon
+getRandomWeapon = do
+    wi <- randomRIO (0, length possibleWeapons - 1)
+    return $ possibleWeapons !! wi
+
 --
 -- Miscellaneous
 --
