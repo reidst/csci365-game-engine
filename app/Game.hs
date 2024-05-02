@@ -175,6 +175,7 @@ play :: Game ()
 play = do
     liftIO $ C.threadDelay 1000
     thePlayer <- gets player
+    incrementAttack thePlayer
     updateDisplay
     done <- processEvent
     unless done play
@@ -269,7 +270,8 @@ worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
     let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char pieceA '@')
-    return [playerImage, levelGeoImage theLevel]
+    let swordImage = generateSword thePlayer
+    return [playerImage, swordImage, levelGeoImage theLevel]
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
@@ -346,14 +348,25 @@ playerAttacking (Player _ _ _ _ _ a)
     | a < (3 * animationConstant) = True
     | otherwise = False
 
+incrementAttack :: Player -> Game ()
+incrementAttack (Player coord health weapon potions haskey a) = do
+    world <- get
+    let Player (x, y) health weapon potions haskey ani = player world
+    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1)}
+
 playerBeginAttack :: Player -> Game ()
 playerBeginAttack (Player coords health weapon potions haskey ani) = do
     world <- get
     let Player (x, y) health weapon potions haskey _ = player world
     put $ world { player = Player (x, y) health weapon potions haskey 0}
 
-playerGetAni :: Player -> Int
-playerGetAni (Player _ _ _ _ _ a) = a
+generateSword :: Player -> V.Image
+generateSword (Player (x, y) _ _ _ _ a)
+    | (a >= 300) = V.emptyImage
+    | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char pieceA '\\')
+    | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char pieceA '-')
+    | (a > 0) && (a <= 100) = V.translate (x + 1) (y - 1) (V.char pieceA '/')
+    | otherwise = V.translate (x + 1) y (V.char pieceA ' ')
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
