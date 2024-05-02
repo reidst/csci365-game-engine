@@ -2,6 +2,7 @@
 
 module Main where
 
+import qualified Control.Concurrent as C
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
 
@@ -174,21 +175,24 @@ play = do
 
 processEvent :: Game Bool
 processEvent = do
-    k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey V.KEsc []
-        then return True
-        else do
-            case k of
-                V.EvKey (V.KChar 'r') [V.MCtrl] -> ask >>= liftIO . V.refresh
-                V.EvKey V.KLeft  []             -> movePlayer (-1) 0
-                V.EvKey V.KRight []             -> movePlayer 1 0
-                V.EvKey V.KUp    []             -> movePlayer 0 (-1)
-                V.EvKey V.KDown  []             -> movePlayer 0 1
-                V.EvKey (V.KChar 'h') []        -> usePotion
-                V.EvKey (V.KChar 'j') []        -> addPotion
-                V.EvKey (V.KChar 'k') []        -> givePlayerKey
-                _                               -> return ()
-            return False
+    k <- ask >>= liftIO . V.nextEventNonblocking
+    case k of
+        Nothing -> return False
+        Just k2 ->
+            if k2 == V.EvKey V.KEsc []
+                then return True
+                else do
+                    case k2 of
+                        V.EvKey (V.KChar 'r') [V.MCtrl] -> ask >>= liftIO . V.refresh
+                        V.EvKey V.KLeft  []             -> movePlayer (-1) 0
+                        V.EvKey V.KRight []             -> movePlayer 1 0
+                        V.EvKey V.KUp    []             -> movePlayer 0 (-1)
+                        V.EvKey V.KDown  []             -> movePlayer 0 1
+                        V.EvKey (V.KChar 'h') []        -> usePotion
+                        V.EvKey (V.KChar 'j') []        -> addPotion
+                        V.EvKey (V.KChar 'k') []        -> givePlayerKey
+                        _                               -> return ()
+                    return False
 
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
