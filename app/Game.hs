@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTSyntax #-}
+
 module Main where
 
 import qualified Graphics.Vty as V
@@ -51,9 +53,10 @@ data Level = Level
     }
     deriving (Show,Eq)
 
-data LevelPiece
-    = EmptySpace
-    | Rock
+data LevelPiece where
+    EmptySpace  :: LevelPiece
+    Rock        :: LevelPiece
+    RMonster    :: Monster -> LevelPiece
     deriving (Show, Eq)
 
 type Game = RWST V.Vty () World IO
@@ -112,8 +115,12 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
         xMax = min (levelWidth - 1) (centerX + size)
         yMin = max 1 (centerY - size)
         yMax = min (levelHeight - 1) (centerY + size)
+    monsterX <- randomRIO (xMin, xMax)
+    monsterY <- randomRIO (yMin, yMax)
+    randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
-    return (geo // room)
+        monster = [((monsterX, monsterY), (RMonster (Monster (monsterX, monsterY) randMonster (False))))]
+    return (geo // room // monster)
 
 pieceA, dumpA :: V.Attr
 pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.green
@@ -184,6 +191,11 @@ worldImages = do
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.green) ' '
 imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo (RMonster m) = case getMonsterName m of
+    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'G'
+    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'W'
+    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'C'
+    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.green) 'T'
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
@@ -201,21 +213,26 @@ buildGeoImage geo =
 getRandomMonster :: IO MonsterStats
 getRandomMonster = do
     ri <- randomRIO (0, length possibleMonsters)
-    return $ possibleMonsters!!ri
+    return $ (possibleMonsters!!ri)
+
+getMonsterName :: Monster -> String
+getMonsterName (Monster _ (MonsterStats name _ _) _) = name
+    
 --
 -- Miscellaneous
 --
+
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
 
-monsterX :: Monster -> Int
-monsterX = fst . monsterCoord
+monstersX :: Monster -> Int
+monstersX = fst . monsterCoord
 
-monsterY :: Monster -> Int
-monsterY = snd . monsterCoord
+monstersY :: Monster -> Int
+monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
 playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: 0  Power: 0   Key: X" )
