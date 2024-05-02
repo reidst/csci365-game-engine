@@ -76,6 +76,12 @@ type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
+chestFrequency :: Int
+chestFrequency = 15
+
+monsterFrequency :: Int
+monsterFrequency = 50
+
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Sentient Chair" 10 2,
@@ -101,7 +107,7 @@ initialPlayerWeapon = Weapon "Hand" 5
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 4
+    level0 <- mkLevel 8
     let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
@@ -141,21 +147,26 @@ addRoom :: Int
         -- ^The desired center of the new room.
         -> IO Geo
 addRoom levelWidth levelHeight geo (centerX, centerY) = do
-    size <- randomRIO (5,25)
+    size <- randomRIO (5,8)
     let xMin = max 1 (centerX - size)
-        xMax = min (levelWidth - 1) (centerX + size)
+        xMax = min (levelWidth - 2) (centerX + size)
         yMin = max 1 (centerY - size)
-        yMax = min (levelHeight - 1) (centerY + size)
-    chestX <- randomRIO (xMin, xMax)
-    chestY <- randomRIO (yMin, yMax)
+        yMax = min (levelHeight - 2) (centerY + size)
+    hasChest <- (< chestFrequency) <$> randomRIO (0,99)
+    chestX <- randomRIO (xMin, xMax - 1)
+    chestY <- randomRIO (yMin, yMax - 1)
     chestContents <- generateChestContents
-    monsterX <- randomRIO (xMin, xMax)
-    monsterY <- randomRIO (yMin, yMax)
+    hasMonster <- (< monsterFrequency) <$> randomRIO (0, 99)
+    monsterX <- randomRIO (xMin, xMax - 1)
+    monsterY <- randomRIO (yMin, yMax - 1)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest chestContents)]
         monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
-    return (geo // room // chest // monster)
+    return $ geo
+          // room
+          // (if hasChest then chest else [])
+          // (if hasMonster then monster else [])
 
 generateChestContents :: IO ChestContents
 generateChestContents = do
@@ -164,9 +175,11 @@ generateChestContents = do
     then ChestPotion <$> randomRIO (1, 3)
     else ChestWeapon <$> getRandomWeapon
 
-pieceA, dumpA :: V.Attr
-pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.black
-dumpA = V.defAttr `V.withStyle` V.reverseVideo
+playerA, rockA, monsterA, chestA :: V.Attr
+playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
+rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
+monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
+chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
 play :: Game ()
 play = do
@@ -233,7 +246,7 @@ movePlayer dx dy = do
                 levelGeoImage = buildGeoImage newGeo }
             put $ world { player = Player (x, y) health weapon potions haskey score, level = newLevel }
         DoorPiece (Door True) -> do
-            newLevel <- liftIO $ mkLevel 4 
+            newLevel <- liftIO $ mkLevel 8
             put $ world { player = Player (levelStart newLevel) health weapon potions False (score+100), level = newLevel}
         _ -> return ()
 
@@ -263,23 +276,23 @@ worldImages :: Game [V.Image]
 worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
-    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char pieceA '@')
+    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char playerA '@')
     return [playerImage, levelGeoImage theLevel]
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
-imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo Rock = V.char rockA 'X'
 imageForGeo (Chest ChestEmpty) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) 'X'
+    V.char chestA 'X'
 imageForGeo (Chest _) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) '?'
+    V.char chestA '?'
 imageForGeo (RMonster m) = case getMonsterName m of
-    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'G'
-    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'W'
-    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'C'
-    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'T'
-imageForGeo (DoorPiece (Door False)) = V.char (V.defAttr `V.withForeColor` V.yellow `V.withBackColor` V.blue) 'D'
-imageForGeo (DoorPiece (Door True)) = V.char (V.defAttr `V.withBackColor` V.blue) ' '
+    "Goblin"         -> V.char monsterA 'G'
+    "Witch"          -> V.char monsterA 'W'
+    "Sentient Chair" -> V.char monsterA 'C'
+    "Troll"          -> V.char monsterA 'T'
+imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
+imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
 
 
 buildGeoImage :: Geo -> V.Image
