@@ -18,6 +18,7 @@ data Player = Player
     , currentWeapon :: Weapon
     , playerPotions :: Int
     , playerHasKey :: Bool
+    , score :: Int
     } deriving (Show,Eq)
 
 data Monster = Monster
@@ -101,7 +102,7 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 4
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -194,15 +195,15 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health weapon potions haskey = player world
+    let Player (x, y) health weapon potions haskey score= player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey score}
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey (score+25)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -213,7 +214,7 @@ movePlayer dx dy = do
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey
+            newPlayer = Player (x, y) health newWeapon potions haskey (score+25)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -230,10 +231,10 @@ movePlayer dx dy = do
                 levelGeo = newGeo,
                 doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions haskey, level = newLevel }
+            put $ world { player = Player (x, y) health weapon potions haskey score, level = newLevel }
         DoorPiece (Door True) -> do
             newLevel <- liftIO $ mkLevel 4 
-            put $ world { player = Player (levelStart newLevel) health weapon potions False, level = newLevel}
+            put $ world { player = Player (levelStart newLevel) health weapon potions False (score+100), level = newLevel}
         _ -> return ()
 
 
@@ -314,20 +315,20 @@ getRandomWeapon = do
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health weapon potions key = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key}
+    let Player (x, y) health weapon potions key score = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key score}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health weapon potions key = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) key }
+    let Player (x, y) health weapon potions key score = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key score}
 
 givePlayerKey :: Game ()
 givePlayerKey = do
     world <- get
-    let Player (x, y) health weapon potions _ = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) True }
+    let Player (x, y) health weapon potions _ score = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True score}
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
@@ -342,4 +343,4 @@ monstersY :: Monster -> Int
 monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: " ++ if playerHasKey player then "✓" else "X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: " ++ if playerHasKey player then "✓  " else "X  " ++ "Score: " ++ show (score player))
