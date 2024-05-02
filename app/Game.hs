@@ -163,6 +163,7 @@ processEvent = do
                 V.EvKey V.KDown  []             -> movePlayer 0 1
                 V.EvKey (V.KChar 'h') []        -> usePotion
                 V.EvKey (V.KChar 'j') []        -> addPotion
+                V.EvKey (V.KChar 'k') []        -> givePlayerKey
                 _                               -> return ()
             return False
 
@@ -186,6 +187,15 @@ movePlayer dx dy = do
                 levelGeoImage = buildGeoImage newGeo }
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
+        DoorPiece (Door False) -> when haskey $ do
+                                          let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
+                                          let newLevel = Level {
+                                                levelStart = levelStart $ level world,
+                                                levelEnd = levelEnd $ level world,
+                                                levelGeo = newGeo,
+                                                levelGeoImage = buildGeoImage newGeo }
+                                          put $ world { player = Player (x, y) health weapon potions haskey
+                                                      , level = newLevel }
         _          -> return ()
 
 
@@ -269,6 +279,12 @@ addPotion = do
     let Player (x, y) health weapon potions key = player world
     put $ world { player = Player (x, y) health weapon (potions + 1) key }
 
+givePlayerKey :: Game ()
+givePlayerKey = do
+    world <- get
+    let Player (x, y) health weapon potions _ = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True }
+
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
@@ -282,4 +298,4 @@ monstersY :: Monster -> Int
 monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Power: 0   Key: " ++ if playerHasKey player then "✓" else "X")
