@@ -166,9 +166,9 @@ movePlayer dx dy = do
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health potions haskey }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey }
         Chest (Just potionCount) -> let
-            newPlayer = Player (x, y) health (potions + potionCount) haskey
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey
             newGeo = levelGeo (level world) // [((x', y'), Chest Nothing)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
