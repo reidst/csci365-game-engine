@@ -95,7 +95,9 @@ possibleWeapons = [Weapon "Oak Staff" 8,
                    Weapon "Dagger" 12,
                    Weapon "Magic Staff" 18,
                    Weapon "Claymore" 24,
-                   Weapon "Orb of Disassembly" 50]
+                   Weapon "Orb of Disassembly" 50,
+                   Weapon "Coughing Baby" 2,
+                   Weapon "Hydrogen Bomb" 75]
 
 initialPlayerHealth :: Int
 initialPlayerHealth = 100
@@ -185,6 +187,7 @@ playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
 rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
 monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
 chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
+swordA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
 play :: Game ()
 play = do
@@ -289,7 +292,7 @@ worldImages :: Game [V.Image]
 worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
-    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char pieceA '@')
+    let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char playerA '@')
     let swordImage = generateSword thePlayer
     return [playerImage, swordImage, levelGeoImage theLevel]
 
@@ -364,29 +367,29 @@ playerY :: Player -> Int
 playerY = snd . playerCoord
 
 playerAttacking :: Player -> Bool
-playerAttacking (Player _ _ _ _ _ a)
+playerAttacking (Player _ _ _ _ _ a _)
     | a < (3 * animationConstant) = True
     | otherwise = False
 
 incrementAttack :: Player -> Game ()
-incrementAttack (Player coord health weapon potions haskey a) = do
+incrementAttack (Player coord health weapon potions haskey a score) = do
     world <- get
-    let Player (x, y) health weapon potions haskey ani = player world
-    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1)}
+    let Player (x, y) health weapon potions haskey ani score = player world
+    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1) score}
 
 playerBeginAttack :: Player -> Game ()
-playerBeginAttack (Player coords health weapon potions haskey ani) = do
+playerBeginAttack (Player coords health weapon potions haskey ani score) = do
     world <- get
-    let Player (x, y) health weapon potions haskey _ = player world
-    put $ world { player = Player (x, y) health weapon potions haskey 0}
+    let Player (x, y) health weapon potions haskey _ score = player world
+    put $ world { player = Player (x, y) health weapon potions haskey 0 score}
 
 generateSword :: Player -> V.Image
-generateSword (Player (x, y) _ _ _ _ a)
+generateSword (Player (x, y) _ _ _ _ a _)
     | (a >= 300) = V.emptyImage
-    | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char pieceA '\\')
-    | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char pieceA '-')
-    | (a > 0) && (a <= 100) = V.translate (x + 1) (y - 1) (V.char pieceA '/')
-    | otherwise = V.translate (x + 1) y (V.char pieceA ' ')
+    | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char swordA '-')
+    | (a > 0) && (a <= 100) = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | otherwise = V.translate (x + 1) y (V.char swordA ' ')
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
