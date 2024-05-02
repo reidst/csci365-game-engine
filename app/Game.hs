@@ -181,6 +181,7 @@ play = do
 
 processEvent :: Game Bool
 processEvent = do
+    thePlayer <- gets player
     k <- ask >>= liftIO . V.nextEventNonblocking
     case k of
         Nothing -> return False
@@ -197,6 +198,7 @@ processEvent = do
                         V.EvKey (V.KChar 'h') []        -> usePotion
                         V.EvKey (V.KChar 'j') []        -> addPotion
                         V.EvKey (V.KChar 'k') []        -> givePlayerKey
+                        V.EvKey (V.KChar 'a') []        -> playerBeginAttack thePlayer
                         _                               -> return ()
                     return False
 
@@ -343,6 +345,15 @@ playerAttacking :: Player -> Bool
 playerAttacking (Player _ _ _ _ _ a)
     | a < (3 * animationConstant) = True
     | otherwise = False
+
+playerBeginAttack :: Player -> Game ()
+playerBeginAttack (Player coords health weapon potions haskey ani) = do
+    world <- get
+    let Player (x, y) health weapon potions haskey _ = player world
+    put $ world { player = Player (x, y) health weapon potions haskey 0}
+
+playerGetAni :: Player -> Int
+playerGetAni (Player _ _ _ _ _ a) = a
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
