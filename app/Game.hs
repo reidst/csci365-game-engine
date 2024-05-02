@@ -20,6 +20,7 @@ data Player = Player
     , playerPotions :: Int
     , playerHasKey :: Bool
     , playerAttackCounter :: Int
+    , score :: Int
     } deriving (Show,Eq)
 
 data Monster = Monster
@@ -49,6 +50,7 @@ data Level = Level
     { levelStart :: Coord
     , levelEnd :: Coord
     , levelGeo :: Geo
+    , doorCoord :: Coord
     -- building the geo image is expensive. Cache it. Though VTY should go
     -- through greater lengths to avoid the need to cache images.
     , levelGeoImage :: V.Image
@@ -75,6 +77,12 @@ data ChestContents where
 type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
+
+chestFrequency :: Int
+chestFrequency = 15
+
+monsterFrequency :: Int
+monsterFrequency = 50
 
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
@@ -104,8 +112,8 @@ animationConstant = 100
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 4
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant)) level0
+    level0 <- mkLevel 8
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (3 * animationConstant) 0) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -127,10 +135,10 @@ mkLevel difficulty = do
     -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
-    (doorX, doorY) <- randomRIO (head emptySpaces, last emptySpaces)
-    let door = [((doorX, doorY), DoorPiece (Door False))]
+    doorCoord <- randomRIO (head emptySpaces, last emptySpaces)
+    let door = [(doorCoord, DoorPiece (Door False))]
 
-    return $ Level start end (geo // door) (buildGeoImage (geo // door))
+    return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
 
 -- |Add a room to a geography and return a new geography.  Adds a
@@ -144,21 +152,26 @@ addRoom :: Int
         -- ^The desired center of the new room.
         -> IO Geo
 addRoom levelWidth levelHeight geo (centerX, centerY) = do
-    size <- randomRIO (5,25)
+    size <- randomRIO (5,8)
     let xMin = max 1 (centerX - size)
-        xMax = min (levelWidth - 1) (centerX + size)
+        xMax = min (levelWidth - 2) (centerX + size)
         yMin = max 1 (centerY - size)
-        yMax = min (levelHeight - 1) (centerY + size)
-    chestX <- randomRIO (xMin, xMax)
-    chestY <- randomRIO (yMin, yMax)
+        yMax = min (levelHeight - 2) (centerY + size)
+    hasChest <- (< chestFrequency) <$> randomRIO (0,99)
+    chestX <- randomRIO (xMin, xMax - 1)
+    chestY <- randomRIO (yMin, yMax - 1)
     chestContents <- generateChestContents
-    monsterX <- randomRIO (xMin, xMax)
-    monsterY <- randomRIO (yMin, yMax)
+    hasMonster <- (< monsterFrequency) <$> randomRIO (0, 99)
+    monsterX <- randomRIO (xMin, xMax - 1)
+    monsterY <- randomRIO (yMin, yMax - 1)
     randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest chestContents)]
         monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
-    return (geo // room // chest // monster)
+    return $ geo
+          // room
+          // (if hasChest then chest else [])
+          // (if hasMonster then monster else [])
 
 generateChestContents :: IO ChestContents
 generateChestContents = do
@@ -167,9 +180,11 @@ generateChestContents = do
     then ChestPotion <$> randomRIO (1, 3)
     else ChestWeapon <$> getRandomWeapon
 
-pieceA, dumpA :: V.Attr
-pieceA = V.defAttr `V.withForeColor` V.blue `V.withBackColor` V.black
-dumpA = V.defAttr `V.withStyle` V.reverseVideo
+playerA, rockA, monsterA, chestA :: V.Attr
+playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
+rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
+monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
+chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
 play :: Game ()
 play = do
@@ -206,42 +221,47 @@ processEvent = do
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health weapon potions haskey ani = player world
+    let Player (x, y) health weapon potions haskey ani score = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score }
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
                 levelEnd = levelEnd $ level world,
                 levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey ani
+            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
                 levelEnd = levelEnd $ level world,
                 levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
         DoorPiece (Door False) -> when haskey $ do
-                                          let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
-                                          let newLevel = Level {
-                                                levelStart = levelStart $ level world,
-                                                levelEnd = levelEnd $ level world,
-                                                levelGeo = newGeo,
-                                                levelGeoImage = buildGeoImage newGeo }
-                                          put $ world { player = Player (x, y) health weapon potions haskey ani
-                                                      , level = newLevel }
-        _          -> return ()
+            let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
+            let newLevel = Level {
+                levelStart = levelStart $ level world,
+                levelEnd = levelEnd $ level world,
+                levelGeo = newGeo,
+                doorCoord = doorCoord $ level world,
+                levelGeoImage = buildGeoImage newGeo }
+            put $ world { player = Player (x, y) health weapon potions haskey ani score, level = newLevel }
+        DoorPiece (Door True) -> do
+            newLevel <- liftIO $ mkLevel 8
+            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100), level = newLevel}
+        _ -> return ()
 
 
 updateDisplay :: Game ()
@@ -275,18 +295,18 @@ worldImages = do
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
-imageForGeo Rock = V.char V.defAttr 'X'
+imageForGeo Rock = V.char rockA 'X'
 imageForGeo (Chest ChestEmpty) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) 'X'
+    V.char chestA 'X'
 imageForGeo (Chest _) =
-    V.char (V.defAttr `V.withBackColor` V.yellow `V.withForeColor` V.black) '?'
+    V.char chestA '?'
 imageForGeo (RMonster m) = case getMonsterName m of
-    "Goblin" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'G'
-    "Witch" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'W'
-    "Sentient Chair" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'C'
-    "Troll" -> V.char (V.defAttr `V.withForeColor` V.red `V.withBackColor` V.black) 'T'
-imageForGeo (DoorPiece (Door False)) = V.char (V.defAttr `V.withForeColor` V.yellow `V.withBackColor` V.blue) 'D'
-imageForGeo (DoorPiece (Door True)) = V.char (V.defAttr `V.withBackColor` V.blue) ' '
+    "Goblin"         -> V.char monsterA 'G'
+    "Witch"          -> V.char monsterA 'W'
+    "Sentient Chair" -> V.char monsterA 'C'
+    "Troll"          -> V.char monsterA 'T'
+imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
+imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
 
 
 buildGeoImage :: Geo -> V.Image
@@ -304,7 +324,7 @@ buildGeoImage geo =
 
 getRandomMonster :: IO MonsterStats
 getRandomMonster = do
-    ri <- randomRIO (0, (length possibleMonsters) - 1)
+    ri <- randomRIO (0, length possibleMonsters - 1)
     return $ (possibleMonsters !! ri)
 
 getMonsterName :: Monster -> String
@@ -322,20 +342,20 @@ getRandomWeapon = do
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health weapon potions key ani = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani}
+    let Player (x, y) health weapon potions key ani score = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health weapon potions key ani = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) key ani }
+    let Player (x, y) health weapon potions key ani score = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key ani score}
 
 givePlayerKey :: Game ()
 givePlayerKey = do
     world <- get
-    let Player (x, y) health weapon potions _ ani = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) True ani}
+    let Player (x, y) health weapon potions _ ani score = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True ani score}
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
@@ -375,4 +395,4 @@ monstersY :: Monster -> Int
 monstersY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
-playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: " ++ if playerHasKey player then "✓" else "X" )
+playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: " ++ (if playerHasKey player then "✓  " else "X  ") ++ "Score: " ++ show (score player))
