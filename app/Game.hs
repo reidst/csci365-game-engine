@@ -5,7 +5,7 @@ module Main where
 import qualified Control.Concurrent as C
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
-import Prelude hiding (Right)
+import Prelude hiding (Right, Left)
 
 import Data.Array
 
@@ -239,9 +239,9 @@ movePlayer dx dy = do
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score dir }
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score (getDirection dx dy) }
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25) dir
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -252,7 +252,7 @@ movePlayer dx dy = do
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25) dir
+            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -269,10 +269,10 @@ movePlayer dx dy = do
                 levelGeo = newGeo,
                 doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions haskey ani score dir, level = newLevel }
+            put $ world { player = Player (x, y) health weapon potions haskey ani score (getDirection dx dy), level = newLevel }
         DoorPiece (Door True) -> do
             newLevel <- liftIO $ mkLevel 8
-            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) dir, level = newLevel}
+            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) (getDirection dx dy), level = newLevel}
         _ -> return ()
 
 
@@ -391,6 +391,14 @@ playerBeginAttack (Player coords health weapon potions haskey ani score dir) = d
     world <- get
     let Player (x, y) health weapon potions haskey _ score dir = player world
     put $ world { player = Player (x, y) health weapon potions haskey 0 score dir}
+
+getDirection :: Int -> Int -> Direction
+getDirection x y
+    | (x == -1) && (y == 0) = Left
+    | (x == 1) && (y == 0)  = Right
+    | (x == 0) && (y == -1) = Up
+    | (x == 0) && (y == 1)  = Down
+    | otherwise = Right
 
 generateSword :: Player -> V.Image
 generateSword (Player (x, y) _ _ _ _ a _ dir)
