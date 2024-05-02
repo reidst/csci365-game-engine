@@ -108,7 +108,7 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 8
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -246,7 +246,7 @@ movePlayer dx dy = do
                 levelGeoImage = buildGeoImage newGeo }
             put $ world { player = Player (x, y) health weapon potions haskey score, level = newLevel }
         DoorPiece (Door True) -> do
-            newLevel <- liftIO $ mkLevel 4 
+            newLevel <- liftIO $ mkLevel 8
             put $ world { player = Player (levelStart newLevel) health weapon potions False (score+100), level = newLevel}
         _ -> return ()
 
