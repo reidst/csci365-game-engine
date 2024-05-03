@@ -207,6 +207,7 @@ play = do
     liftIO $ C.threadDelay 1000
     thePlayer <- gets player
     incrementAttack thePlayer
+    moveMonsters
     updateDisplay
     done <- processEvent
     unless done play
@@ -279,6 +280,15 @@ movePlayer dx dy = do
             put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) (getDirection dx dy), level = newLevel}
         _ -> return ()
 
+moveMonsters :: Game ()
+moveMonsters = do
+    world <- get
+    theMonsters <- gets monsters
+    geo <- gets $ levelGeo . level
+    let monsterCount = length theMonsters
+    randomDeltas <- sequence $ replicate monsterCount $ (,) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int)
+    let newMonsters = zipWith (\m (dx, dy) -> m { monsterCoord = if geo ! (monsterX m + dx, monsterY m + dy) == EmptySpace then (monsterX m + dx, monsterY m + dy) else monsterCoord m }) theMonsters randomDeltas
+    put $ world { monsters = newMonsters }
 
 updateDisplay :: Game ()
 updateDisplay = do
