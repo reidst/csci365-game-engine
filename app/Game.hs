@@ -228,7 +228,8 @@ play frame = do
     moveMonsters
     updateDisplay
     done <- processEvent
-    unless done (play (frame + 1))
+    isDead <- isPlayerDead
+    unless (done || isDead) (play (frame + 1))
 
 processEvent :: Game Bool
 processEvent = do
@@ -318,6 +319,12 @@ checkPlayer = do
     theMonsters <- gets monsters
     let newPlayer = foldr checkPlayerAttacked thePlayer theMonsters
     put $ world { player = newPlayer }
+
+isPlayerDead :: Game Bool
+isPlayerDead = do
+    world <- get
+    thePlayer <- gets player
+    if (playerHealth thePlayer) <= 0 then return True else return False
 
 checkMonsterAttacked :: Monster -> Player -> Monster
 checkMonsterAttacked (Monster (x, y) (MonsterStats name mhealth mdamage) haskey) p@(Player _ _ (Weapon _ wattack) _ _ _ _ _)
