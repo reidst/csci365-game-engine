@@ -2,8 +2,10 @@
 
 module Main where
 
+import qualified Control.Concurrent as C
 import qualified Graphics.Vty as V
 import Graphics.Vty.CrossPlatform (mkVty)
+import Prelude hiding (Right, Left)
 
 import Data.Array
 
@@ -18,7 +20,9 @@ data Player = Player
     , currentWeapon :: Weapon
     , playerPotions :: Int
     , playerHasKey :: Bool
+    , playerAttackCounter :: Int
     , score :: Int
+    , playerDirection :: Direction
     } deriving (Show,Eq)
 
 data Monster = Monster
@@ -72,6 +76,13 @@ data ChestContents where
     ChestEmpty  :: ChestContents
     deriving (Show, Eq)
 
+data Direction where
+    Up :: Direction
+    Down :: Direction
+    Left :: Direction
+    Right :: Direction
+    deriving (Show, Eq)
+
 type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
@@ -93,7 +104,9 @@ possibleWeapons = [Weapon "Oak Staff" 8,
                    Weapon "Dagger" 12,
                    Weapon "Magic Staff" 18,
                    Weapon "Claymore" 24,
-                   Weapon "Orb of Disassembly" 50]
+                   Weapon "Orb of Disassembly" 50,
+                   Weapon "Coughing Baby" 2,
+                   Weapon "Hydrogen Bomb" 75]
 
 initialPlayerHealth :: Int
 initialPlayerHealth = 100
@@ -104,11 +117,14 @@ initialPlayerPotions = 3
 initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
+animationConstant :: Int
+animationConstant = 100
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 8
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0) level0
+    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant) 0 Right) level0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -180,43 +196,52 @@ playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
 rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
 monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
 chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
+swordA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
 play :: Game ()
 play = do
+    liftIO $ C.threadDelay 1000
+    thePlayer <- gets player
+    incrementAttack thePlayer
     updateDisplay
     done <- processEvent
     unless done play
 
 processEvent :: Game Bool
 processEvent = do
-    k <- ask >>= liftIO . V.nextEvent
-    if k == V.EvKey V.KEsc []
-        then return True
-        else do
-            case k of
-                V.EvKey (V.KChar 'r') [V.MCtrl] -> ask >>= liftIO . V.refresh
-                V.EvKey V.KLeft  []             -> movePlayer (-1) 0
-                V.EvKey V.KRight []             -> movePlayer 1 0
-                V.EvKey V.KUp    []             -> movePlayer 0 (-1)
-                V.EvKey V.KDown  []             -> movePlayer 0 1
-                V.EvKey (V.KChar 'h') []        -> usePotion
-                V.EvKey (V.KChar 'j') []        -> addPotion
-                V.EvKey (V.KChar 'k') []        -> givePlayerKey
-                _                               -> return ()
-            return False
+    thePlayer <- gets player
+    k <- ask >>= liftIO . V.nextEventNonblocking
+    case k of
+        Nothing -> return False
+        Just k2 ->
+            if k2 == V.EvKey V.KEsc []
+                then return True
+                else do
+                    case k2 of
+                        V.EvKey (V.KChar 'r') [V.MCtrl] -> ask >>= liftIO . V.refresh
+                        V.EvKey V.KLeft  []             -> movePlayer (-1) 0
+                        V.EvKey V.KRight []             -> movePlayer 1 0
+                        V.EvKey V.KUp    []             -> movePlayer 0 (-1)
+                        V.EvKey V.KDown  []             -> movePlayer 0 1
+                        V.EvKey (V.KChar 'h') []        -> usePotion
+                        V.EvKey (V.KChar 'j') []        -> addPotion
+                        V.EvKey (V.KChar 'k') []        -> givePlayerKey
+                        V.EvKey (V.KChar ' ') []        -> playerBeginAttack thePlayer
+                        _                               -> return ()
+                    return False
 
 movePlayer :: Int -> Int -> Game ()
 movePlayer dx dy = do
     world <- get
-    let Player (x, y) health weapon potions haskey score= player world
+    let Player (x, y) health weapon potions haskey ani score dir = player world
     let x' = x + dx
         y' = y + dy
     -- this is only valid because the level generation assures the border is
     -- always Rock
     case levelGeo (level world) ! (x',y') of
-        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey score}
+        EmptySpace -> put $ world { player = Player (x',y') health weapon potions haskey ani score (getDirection dx dy) }
         Chest (ChestPotion potionCount) -> let
-            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey (score+25)
+            newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -227,7 +252,7 @@ movePlayer dx dy = do
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
-            newPlayer = Player (x, y) health newWeapon potions haskey (score+25)
+            newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = Level {
                 levelStart = levelStart $ level world,
@@ -244,10 +269,10 @@ movePlayer dx dy = do
                 levelGeo = newGeo,
                 doorCoord = doorCoord $ level world,
                 levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions haskey score, level = newLevel }
+            put $ world { player = Player (x, y) health weapon potions haskey ani score (getDirection dx dy), level = newLevel }
         DoorPiece (Door True) -> do
             newLevel <- liftIO $ mkLevel 8
-            put $ world { player = Player (levelStart newLevel) health weapon potions False (score+100), level = newLevel}
+            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) (getDirection dx dy), level = newLevel}
         _ -> return ()
 
 
@@ -277,7 +302,8 @@ worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
     let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char playerA '@')
-    return [playerImage, levelGeoImage theLevel]
+    let swordImage = generateSword thePlayer
+    return [playerImage, swordImage, levelGeoImage theLevel]
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
@@ -328,26 +354,68 @@ getRandomWeapon = do
 usePotion :: Game ()
 usePotion = do
     world <- get
-    let Player (x, y) health weapon potions key score = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key score}
+    let Player (x, y) health weapon potions key ani score dir = player world
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score dir}
 
 addPotion :: Game ()
 addPotion = do
     world <- get
-    let Player (x, y) health weapon potions key score = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) key score}
+    let Player (x, y) health weapon potions key ani score dir = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) key ani score dir}
 
 givePlayerKey :: Game ()
 givePlayerKey = do
     world <- get
-    let Player (x, y) health weapon potions _ score = player world
-    put $ world { player = Player (x, y) health weapon (potions + 1) True score}
+    let Player (x, y) health weapon potions _ ani score dir = player world
+    put $ world { player = Player (x, y) health weapon (potions + 1) True ani score dir}
 
 playerX :: Player -> Int
 playerX = fst . playerCoord
 
 playerY :: Player -> Int
 playerY = snd . playerCoord
+
+playerAttacking :: Player -> Bool
+playerAttacking (Player _ _ _ _ _ a _ _)
+    | a < (3 * animationConstant) = True
+    | otherwise = False
+
+incrementAttack :: Player -> Game ()
+incrementAttack (Player coord health weapon potions haskey a score dir) = do
+    world <- get
+    let Player (x, y) health weapon potions haskey ani score dir = player world
+    put $ world { player = Player (x, y) health weapon potions haskey (ani + 1) score dir}
+
+playerBeginAttack :: Player -> Game ()
+playerBeginAttack (Player coords health weapon potions haskey ani score dir) = do
+    world <- get
+    let Player (x, y) health weapon potions haskey _ score dir = player world
+    put $ world { player = Player (x, y) health weapon potions haskey 0 score dir}
+
+getDirection :: Int -> Int -> Direction
+getDirection x y
+    | (x == -1) && (y == 0) = Left
+    | (x == 1) && (y == 0)  = Right
+    | (x == 0) && (y == -1) = Up
+    | (x == 0) && (y == 1)  = Down
+    | otherwise = Right
+
+generateSword :: Player -> V.Image
+generateSword (Player (x, y) _ _ _ _ a _ dir)
+    | (a >= 150) = V.emptyImage
+    | (dir == Right) && (a > 100) && (a < 150)  = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Right) && (a > 50) && (a <= 100) = V.translate (x + 1) (y) (V.char swordA '-')
+    | (dir == Right) && (a > 0) && (a <= 50)   = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Left) && (a > 100) && (a < 150)   = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Left) && (a > 50) && (a <= 100)  = V.translate (x - 1) (y) (V.char swordA '-')
+    | (dir == Left) && (a > 0) && (a <= 50)    = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | (dir == Down) && (a > 100) && (a < 150)   = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Down) && (a > 50) && (a <= 100)  = V.translate (x) (y + 1) (V.char swordA '|')
+    | (dir == Down) && (a > 0) && (a <= 50)    = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Up) && (a > 100) && (a < 150)     = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Up) && (a > 50) && (a <= 100)    = V.translate (x) (y - 1) (V.char swordA '|')
+    | (dir == Up) && (a > 0) && (a <= 50)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | otherwise = V.emptyImage
 
 monstersX :: Monster -> Int
 monstersX = fst . monsterCoord
