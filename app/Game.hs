@@ -164,14 +164,34 @@ mkLevel difficulty = do
     centers <- replicateM (roomCount difficulty) randomP
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo
                  (start : end : centers)
-    let emptySpaces = [(x, y) | x <- [0..levelWidth-1],
-                                y <- [0..levelHeight-1],
-                                geo ! (x, y) == EmptySpace]
-    newDoorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
+    let edgeSpaces = [(x, y) | x <- [0..levelWidth-1],
+                            y <- [0..levelHeight-1],
+                            geo ! (x, y) == Rock,
+                            x == 0 || y == 0 || x == levelWidth-2 || y == levelHeight-2]
+    
+    newDoorCoord <- getDoorCoord geo edgeSpaces levelWidth levelHeight
     let door = [(newDoorCoord, Door)]
 
     return $ Level difficulty start end (geo // door) newDoorCoord
                    (buildGeoImage (geo // door))
+
+getDoorCoord :: Geo -> [(Int, Int)] -> Int -> Int -> IO Coord
+getDoorCoord geo edgeSpaces levelWidth levelHeight = do
+    let randomIndex = randomRIO (0, length edgeSpaces - 1)
+    index <- randomIndex
+    let possDoorCoord = edgeSpaces !! index
+    let neighbor = case possDoorCoord of
+            (0,y) -> (1,y)
+            (x,0) -> (x,1)
+            (w,y) | w == levelWidth-2 -> (w-1, y)
+            (x,h) | h == levelHeight-2 -> (x,h-1)
+            _ -> (0,0)
+    if geo ! neighbor == EmptySpace
+        then return possDoorCoord
+        else getDoorCoord geo edgeSpaces levelWidth levelHeight
+        
+
+    
 
 spawnMonsters :: Level -> IO [Monster]
 spawnMonsters l = do
