@@ -122,7 +122,7 @@ initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
 potionHealing :: Int
-potionHealing = 10
+potionHealing = 100
 
 animationConstant :: Int
 animationConstant = 15
