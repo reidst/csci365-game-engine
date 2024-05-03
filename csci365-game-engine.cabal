@@ -1,7 +1,7 @@
 cabal-version:      3.0
 name:               csci365-game-engine
-version:            0.1.0.0
-synopsis:           A text-based game engine and an example dungeon crawler.
+version:            1.0.0.0
+synopsis:           A terminal-based dungeon crawler game.
 -- description:
 license:            BSD-3-Clause
 license-file:       LICENSE
@@ -10,7 +10,7 @@ maintainer:         reidst@hendrix.edu, fullerra@hendrix.edu, allened@hendrix.ed
 -- copyright:
 category:           Game
 build-type:         Simple
-extra-doc-files:    CHANGELOG.md
+-- extra-doc-files:
 -- extra-source-files:
 
 common warnings
