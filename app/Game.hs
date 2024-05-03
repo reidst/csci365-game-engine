@@ -130,7 +130,7 @@ main = do
     monsters0 <- spawnMonsters level0
     let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant * 3) 0 Right
         world0 = World player0 level0 monsters0
-    (_finalWorld, ()) <- execRWST play vty world0
+    (_finalWorld, ()) <- execRWST (play 0) vty world0
     V.shutdown vty
 
 -- |Generate a level randomly using the specified difficulty.  Higher
@@ -205,16 +205,16 @@ monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
 chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 swordA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
-play :: Game ()
-play = do
+play :: Int -> Game ()
+play frame = do
     liftIO $ C.threadDelay 1000
     thePlayer <- gets player
     incrementAttack thePlayer
-    checkAttack
+    when (frame `mod` animationConstant == 0) checkAttack
     moveMonsters
     updateDisplay
     done <- processEvent
-    unless done play
+    unless done (play (frame + 1))
 
 processEvent :: Game Bool
 processEvent = do
@@ -462,8 +462,7 @@ getSwordCoords (Player (x, y) _ _ _ _ a _ dir)
     | (dir == Up) && (a > 2 * animationConstant) && (a < 3 * animationConstant)    = ((x + 1), (y - 1))
     | (dir == Up) && (a > animationConstant) && (a <= 2 * animationConstant)       = (x, (y - 1))
     | (dir == Up) && (a > 0) && (a <= animationConstant)                           = ((x - 1), (y - 1))
-    | otherwise = ((x + 1), y)
-
+    | otherwise = (0, 0)
 monsterSpawnLocations :: Geo -> [Coord]
 monsterSpawnLocations geo = [i | (i, e) <- assocs geo, e == EmptySpace]
 
