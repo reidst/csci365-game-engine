@@ -474,9 +474,11 @@ usePotion :: Game ()
 usePotion = do
     world <- get
     thePlayer <- gets player
+    let oldHealth = playerHealth thePlayer
+        newHealth = min 100 (oldHealth + potionHealing)
+        newPotionCount = playerPotions thePlayer - 1
     when (playerPotions thePlayer > 0) $ put $ world { player =
-        thePlayer { playerHealth = (playerHealth thePlayer + potionHealing)
-        , playerPotions = (playerPotions thePlayer - 1)}}
+        thePlayer { playerHealth = newHealth, playerPotions = newPotionCount }}
 
 -- Adds a potion to the player's potion count
 addPotion :: Game ()
