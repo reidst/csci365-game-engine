@@ -98,13 +98,13 @@ roomCount :: Int -> Int
 roomCount difficulty = 2 ^ difficulty + 20 * difficulty
 
 monsterSlowness :: Int
-monsterSlowness = 10000
+monsterSlowness = 20
 
 possibleMonsters :: [MonsterStats]
-possibleMonsters = [MonsterStats "Goblin" 20 5,
-                    MonsterStats "Sentient Chair" 10 2,
-                    MonsterStats "Troll" 40 10,
-                    MonsterStats "Witch" 30 8]
+possibleMonsters = [MonsterStats "Goblin" 20 2,
+                    MonsterStats "Sentient Chair" 10 1,
+                    MonsterStats "Troll" 40 4,
+                    MonsterStats "Witch" 30 3]
 
 possibleWeapons :: [Weapon]
 possibleWeapons = [Weapon "Oak Staff" 8,
@@ -130,8 +130,8 @@ potionHealing = 10
 animationConstant :: Int
 animationConstant = 15
 
-playerConstant :: Int
-playerConstant = 75
+playerDamageConstant :: Int
+playerDamageConstant = 5
 
 main :: IO ()
 main = do
@@ -224,7 +224,7 @@ play frame = do
     thePlayer <- gets player
     incrementAttack thePlayer
     when (frame `mod` animationConstant == 0) checkAttack
-    when (frame `mod` playerConstant == 0) checkPlayer
+    when (frame `mod` playerDamageConstant == 0) checkPlayer
     moveMonsters
     updateDisplay
     done <- processEvent
