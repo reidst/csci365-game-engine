@@ -109,7 +109,7 @@ initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
 animationConstant :: Int
-animationConstant = 100
+animationConstant = 15
 
 main :: IO ()
 main = do
@@ -385,10 +385,10 @@ playerBeginAttack (Player coords health weapon potions haskey ani score) = do
 
 generateSword :: Player -> V.Image
 generateSword (Player (x, y) _ _ _ _ a _)
-    | (a >= 300) = V.emptyImage
-    | (a > 200) && (a < 300) = V.translate (x + 1) (y + 1) (V.char swordA '\\')
-    | (a > 100) && (a <= 200) = V.translate (x + 1) (y) (V.char swordA '-')
-    | (a > 0) && (a <= 100) = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | a >= 3 * animationConstant = V.emptyImage
+    | (a > 2 * animationConstant) && (a < 3 * animationConstant) = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (a > 1 * animationConstant) && (a <= 2 * animationConstant) = V.translate (x + 1) y (V.char swordA '-')
+    | (a > 0) && (a <= 1 * animationConstant) = V.translate (x + 1) (y - 1) (V.char swordA '/')
     | otherwise = V.translate (x + 1) y (V.char swordA ' ')
 
 monstersX :: Monster -> Int
