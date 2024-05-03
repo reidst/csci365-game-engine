@@ -94,7 +94,7 @@ monsterCount :: Int
 monsterCount = 50
 
 monsterSlowness :: Int
-monsterSlowness = 10000
+monsterSlowness = 100
 
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
@@ -308,7 +308,9 @@ checkAttack = do
     theMonsters <- gets monsters
     let newMonsters = map (\m -> checkMonsterAttacked m thePlayer) theMonsters
         validMonsters = filter (\m -> monsterHealth (monsterStats m) > 0) newMonsters
-    put $ world { monsters = validMonsters }
+        keyMonster = filter (\m -> (monsterHealth (monsterStats m) <= 0 && monsterHasKey m)) newMonsters
+        newPlayer = if null keyMonster then thePlayer else thePlayer { playerHasKey = True }
+    put $ world { monsters = validMonsters, player = newPlayer }
 
 checkPlayerAttacked :: Monster -> Player -> Player
 checkPlayerAttacked m@(Monster (mx, my) (MonsterStats name mhealth mdamage) haskeym) p@(Player (px, py) phealth weapon potions haskey counter score dir)
