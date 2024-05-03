@@ -50,7 +50,8 @@ data World = World
     deriving (Show,Eq)
 
 data Level = Level
-    { levelStart :: Coord
+    { levelDifficulty :: Int
+    , levelStart :: Coord
     , levelEnd :: Coord
     , levelGeo :: Geo
     , doorCoord :: Coord
@@ -154,7 +155,7 @@ mkLevel difficulty = do
     doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
     let door = [(doorCoord, DoorPiece (Door False))]
 
-    return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
+    return $ Level difficulty start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
 spawnMonsters :: Level -> IO [Monster]
 spawnMonsters level = do
