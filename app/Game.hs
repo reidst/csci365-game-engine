@@ -137,8 +137,11 @@ main = do
     monsters0 <- spawnMonsters level0
     let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant * 3) 0 Right
         world0 = World player0 level0 monsters0
-    (_finalWorld, ()) <- execRWST (play 0) vty world0
+    (finalWorld, ()) <- execRWST (play 0) vty world0
+    let finalScore = score $ player finalWorld
+        finalLevel = levelDifficulty (level finalWorld) - 3
     V.shutdown vty
+    putStrLn $ "Dead! :,(\nYou descended " ++ show finalLevel ++ " floors and scored " ++ show finalScore ++ " points.\nThanks for playing!"
 
 -- |Generate a level randomly using the specified difficulty.  Higher
 -- difficulty means the level will have more rooms and cover a larger area.
