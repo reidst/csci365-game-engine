@@ -89,7 +89,7 @@ chestFrequency :: Int
 chestFrequency = 15
 
 monsterCount :: Int -> Int
-monsterCount difficulty = difficulty ^ 2 + 5
+monsterCount difficulty = 2 * difficulty ^ 2 - 15
 
 roomCount :: Int -> Int
 roomCount difficulty = 2 ^ difficulty + 20 * difficulty
