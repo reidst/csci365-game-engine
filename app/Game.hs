@@ -98,10 +98,10 @@ monsterSlowness :: Int
 monsterSlowness = 60
 
 possibleMonsters :: [MonsterStats]
-possibleMonsters = [MonsterStats "Goblin" 20 2,
-                    MonsterStats "Sentient Chair" 10 1,
-                    MonsterStats "Troll" 40 4,
-                    MonsterStats "Witch" 30 3]
+possibleMonsters = [MonsterStats "Goblin" 20 10,
+                    MonsterStats "Sentient Chair" 10 5,
+                    MonsterStats "Troll" 40 32,
+                    MonsterStats "Witch" 30 25]
 
 possibleWeapons :: [Weapon]
 possibleWeapons = [Weapon "Oak Staff" 8,
@@ -113,7 +113,7 @@ possibleWeapons = [Weapon "Oak Staff" 8,
                    Weapon "Hydrogen Bomb" 75]
 
 initialPlayerHealth :: Int
-initialPlayerHealth = 100
+initialPlayerHealth = 1000
 
 initialPlayerPotions :: Int
 initialPlayerPotions = 3
@@ -441,8 +441,9 @@ worldImages = do
     let monsterImages = map (\m -> V.translate (monsterX m) (monsterY m)
                         (V.char monsterA $ monsterChar m)) theMonsters
     let swordImage = generateSword thePlayer
-    return $ [playerImage, swordImage] ++ monsterImages ++
-             [levelGeoImage theLevel]
+    return $ monsterImages
+          ++ [playerImage, swordImage]
+          ++ [levelGeoImage theLevel]
 
 -- Gets the monster's character
 monsterChar :: Monster -> Char
@@ -493,9 +494,11 @@ usePotion :: Game ()
 usePotion = do
     world <- get
     thePlayer <- gets player
+    let oldHealth = playerHealth thePlayer
+        newHealth = min initialPlayerHealth (oldHealth + potionHealing)
+        newPotionCount = playerPotions thePlayer - 1
     when (playerPotions thePlayer > 0) $ put $ world { player =
-        thePlayer { playerHealth = (playerHealth thePlayer + potionHealing)
-        , playerPotions = (playerPotions thePlayer - 1)}}
+        thePlayer { playerHealth = newHealth, playerPotions = newPotionCount }}
 
 -- Adds a potion to the player's potion count
 addPotion :: Game ()
@@ -618,7 +621,7 @@ monsterY = snd . monsterCoord
 -- Displays the player's info at the bottom of the screen
 playerInfoImage :: Player -> V.Image
 playerInfoImage p = V.string V.defAttr $ 
-    "Health: " ++ show (playerHealth p)
+    "Health: " ++ show (playerHealth p `div` 10)
     ++ "  Potions: " ++ show (playerPotions p)
     ++ "  Weapon: " ++ weaponName (currentWeapon p)
     ++ "  Power: " ++ show (weaponAttack $ currentWeapon p)
