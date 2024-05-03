@@ -50,7 +50,8 @@ data World = World
     deriving (Show,Eq)
 
 data Level = Level
-    { levelStart :: Coord
+    { levelDifficulty :: Int
+    , levelStart :: Coord
     , levelEnd :: Coord
     , levelGeo :: Geo
     , doorCoord :: Coord
@@ -90,17 +91,20 @@ type Coord = (Int, Int)
 chestFrequency :: Int
 chestFrequency = 15
 
-monsterCount :: Int
-monsterCount = 50
+monsterCount :: Int -> Int
+monsterCount difficulty = difficulty ^ 2 + 5
+
+roomCount :: Int -> Int
+roomCount difficulty = 2 ^ difficulty + 20 * difficulty
 
 monsterSlowness :: Int
-monsterSlowness = 100
+monsterSlowness = 60
 
 possibleMonsters :: [MonsterStats]
-possibleMonsters = [MonsterStats "Goblin" 20 5,
-                    MonsterStats "Sentient Chair" 10 2,
-                    MonsterStats "Troll" 40 10,
-                    MonsterStats "Witch" 30 8]
+possibleMonsters = [MonsterStats "Goblin" 20 2,
+                    MonsterStats "Sentient Chair" 10 1,
+                    MonsterStats "Troll" 40 4,
+                    MonsterStats "Witch" 30 3]
 
 possibleWeapons :: [Weapon]
 possibleWeapons = [Weapon "Oak Staff" 8,
@@ -126,13 +130,13 @@ potionHealing = 10
 animationConstant :: Int
 animationConstant = 15
 
-playerConstant :: Int
-playerConstant = 75
+playerDamageConstant :: Int
+playerDamageConstant = 5
 
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
-    level0 <- mkLevel 8
+    level0 <- mkLevel 3
     monsters0 <- spawnMonsters level0
     let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant * 3) 0 Right
         world0 = World player0 level0 monsters0
@@ -144,8 +148,9 @@ main = do
 mkLevel :: Int -> IO Level
 mkLevel difficulty = do
     let size = 15 * difficulty
-    [levelWidth, levelHeight] <- replicateM 2 $ randomRIO (size,size)
-    let randomP = (,) <$> randomRIO (2, levelWidth-3) <*> randomRIO (2, levelHeight-3)
+        levelWidth = size * 2
+        levelHeight = size
+        randomP = (,) <$> randomRIO (2, levelWidth-3) <*> randomRIO (2, levelHeight-3)
     start <- randomP
     end <- randomP
     -- first the base geography: all rocks
@@ -153,20 +158,22 @@ mkLevel difficulty = do
                         [((x,y),Rock) | x <- [0..levelWidth-1], y <- [0..levelHeight-1]]
         -- next the empty spaces that make the rooms
     -- for this we generate a number of center points
-    centers <- replicateM (2 ^ difficulty + difficulty) randomP
+    centers <- replicateM (roomCount difficulty) randomP
     -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
     doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
     let door = [(doorCoord, DoorPiece (Door False))]
 
-    return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
+    return $ Level difficulty start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
 spawnMonsters :: Level -> IO [Monster]
 spawnMonsters level = do
     let allSpawnLocations = monsterSpawnLocations $ levelGeo level
-    spawnLocations <- sequence $ replicate monsterCount $ (allSpawnLocations !!) <$> randomRIO (0, length allSpawnLocations - 1)
-    stats <- sequence $ replicate monsterCount $ (possibleMonsters !!) <$> randomRIO (0, length possibleMonsters - 1)
+        difficulty = levelDifficulty level
+        numMonsters = monsterCount difficulty
+    spawnLocations <- sequence $ replicate numMonsters $ (allSpawnLocations !!) <$> randomRIO (0, length allSpawnLocations - 1)
+    stats <- sequence $ replicate numMonsters $ (possibleMonsters !!) <$> randomRIO (0, length possibleMonsters - 1)
     let monstersNoKey = zipWith (\loc stat -> Monster loc stat False) spawnLocations stats
         firstMonster = (head monstersNoKey) { monsterHasKey = True }
     return $ firstMonster : tail monstersNoKey
@@ -217,7 +224,7 @@ play frame = do
     thePlayer <- gets player
     incrementAttack thePlayer
     when (frame `mod` animationConstant == 0) checkAttack
-    when (frame `mod` playerConstant == 0) checkPlayer
+    when (frame `mod` playerDamageConstant == 0) checkPlayer
     moveMonsters
     updateDisplay
     done <- processEvent
@@ -259,36 +266,23 @@ movePlayer dx dy = do
         Chest (ChestPotion potionCount) -> let
             newPlayer = Player (x, y) health weapon (potions + potionCount) haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
-            newLevel = Level {
-                levelStart = levelStart $ level world,
-                levelEnd = levelEnd $ level world,
-                levelGeo = newGeo,
-                doorCoord = doorCoord $ level world,
-                levelGeoImage = buildGeoImage newGeo }
+            newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
             --put $ world { player = Player (x,y) health (potions + potionCount), level = _ }
             in put $ world { player = newPlayer, level = newLevel }
         Chest (ChestWeapon newWeapon) -> let
             newPlayer = Player (x, y) health newWeapon potions haskey ani (score+25) (getDirection dx dy)
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
-            newLevel = Level {
-                levelStart = levelStart $ level world,
-                levelEnd = levelEnd $ level world,
-                levelGeo = newGeo,
-                doorCoord = doorCoord $ level world,
-                levelGeoImage = buildGeoImage newGeo }
+            newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
         DoorPiece (Door False) -> when haskey $ do
             let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
-            let newLevel = Level {
-                levelStart = levelStart $ level world,
-                levelEnd = levelEnd $ level world,
-                levelGeo = newGeo,
-                doorCoord = doorCoord $ level world,
-                levelGeoImage = buildGeoImage newGeo }
+            let newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
             put $ world { player = Player (x, y) health weapon potions haskey ani score (getDirection dx dy), level = newLevel }
         DoorPiece (Door True) -> do
-            newLevel <- liftIO $ mkLevel 8
-            put $ world { player = Player (levelStart newLevel) health weapon potions False ani (score+100) (getDirection dx dy), level = newLevel}
+            let newDifficulty = ((+1) . levelDifficulty . level) world
+            newLevel <- liftIO $ mkLevel newDifficulty
+            newMonsters <- liftIO $ spawnMonsters newLevel
+            put $ World (Player (levelStart newLevel) health weapon potions False ani (score + 100) (getDirection dx dy)) newLevel newMonsters
         _ -> return ()
 
 moveMonsters :: Game ()
