@@ -390,19 +390,19 @@ getDirection x y
 
 generateSword :: Player -> V.Image
 generateSword (Player (x, y) _ _ _ _ a _ dir)
-    | (a >= 150) = V.emptyImage
-    | (dir == Right) && (a > 100) && (a < 150)  = V.translate (x + 1) (y + 1) (V.char swordA '\\')
-    | (dir == Right) && (a > 50) && (a <= 100) = V.translate (x + 1) (y) (V.char swordA '-')
-    | (dir == Right) && (a > 0) && (a <= 50)   = V.translate (x + 1) (y - 1) (V.char swordA '/')
-    | (dir == Left) && (a > 100) && (a < 150)   = V.translate (x - 1) (y + 1) (V.char swordA '/')
-    | (dir == Left) && (a > 50) && (a <= 100)  = V.translate (x - 1) (y) (V.char swordA '-')
-    | (dir == Left) && (a > 0) && (a <= 50)    = V.translate (x - 1) (y - 1) (V.char swordA '\\')
-    | (dir == Down) && (a > 100) && (a < 150)   = V.translate (x + 1) (y + 1) (V.char swordA '\\')
-    | (dir == Down) && (a > 50) && (a <= 100)  = V.translate (x) (y + 1) (V.char swordA '|')
-    | (dir == Down) && (a > 0) && (a <= 50)    = V.translate (x - 1) (y + 1) (V.char swordA '/')
-    | (dir == Up) && (a > 100) && (a < 150)     = V.translate (x + 1) (y - 1) (V.char swordA '/')
-    | (dir == Up) && (a > 50) && (a <= 100)    = V.translate (x) (y - 1) (V.char swordA '|')
-    | (dir == Up) && (a > 0) && (a <= 50)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | (a >= 3 * animationConstant) = V.emptyImage
+    | (dir == Right) && (a > 2 * animationConstant) && (a < 3 * animationConstant)  = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Right) && (a > animationConstant) && (a <= 2 * animationConstant) = V.translate (x + 1) (y) (V.char swordA '-')
+    | (dir == Right) && (a > 0) && (a <= animationConstant)   = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Left) && (a > 2 * animationConstant) && (a < 3 * animationConstant)   = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Left) && (a > animationConstant) && (a <= 2 * animationConstant)  = V.translate (x - 1) (y) (V.char swordA '-')
+    | (dir == Left) && (a > 0) && (a <= animationConstant)    = V.translate (x - 1) (y - 1) (V.char swordA '\\')
+    | (dir == Down) && (a > 2 * animationConstant) && (a < 3 * animationConstant)   = V.translate (x + 1) (y + 1) (V.char swordA '\\')
+    | (dir == Down) && (a > animationConstant) && (a <= 2 * animationConstant)  = V.translate (x) (y + 1) (V.char swordA '|')
+    | (dir == Down) && (a > 0) && (a <= animationConstant)    = V.translate (x - 1) (y + 1) (V.char swordA '/')
+    | (dir == Up) && (a > 2 * animationConstant) && (a < 3 * animationConstant)     = V.translate (x + 1) (y - 1) (V.char swordA '/')
+    | (dir == Up) && (a > animationConstant) && (a <= 2 * animationConstant)    = V.translate (x) (y - 1) (V.char swordA '|')
+    | (dir == Up) && (a > 0) && (a <= animationConstant)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
     | otherwise = V.emptyImage
 
 monstersX :: Monster -> Int
