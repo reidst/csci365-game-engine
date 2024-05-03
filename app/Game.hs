@@ -98,7 +98,7 @@ roomCount :: Int -> Int
 roomCount difficulty = 2 ^ difficulty + 20 * difficulty
 
 monsterSlowness :: Int
-monsterSlowness = 10
+monsterSlowness = 10000
 
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
@@ -124,17 +124,23 @@ initialPlayerPotions = 3
 initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
+potionHealing :: Int
+potionHealing = 10
+
 animationConstant :: Int
 animationConstant = 15
+
+playerConstant :: Int
+playerConstant = 75
 
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 3
     monsters0 <- spawnMonsters level0
-    let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0 0 Right
+    let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant * 3) 0 Right
         world0 = World player0 level0 monsters0
-    (_finalWorld, ()) <- execRWST play vty world0
+    (_finalWorld, ()) <- execRWST (play 0) vty world0
     V.shutdown vty
 
 -- |Generate a level randomly using the specified difficulty.  Higher
@@ -212,15 +218,17 @@ monsterA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.red
 chestA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 swordA = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.yellow
 
-play :: Game ()
-play = do
+play :: Int -> Game ()
+play frame = do
     liftIO $ C.threadDelay 1000
     thePlayer <- gets player
     incrementAttack thePlayer
+    when (frame `mod` animationConstant == 0) checkAttack
+    when (frame `mod` playerConstant == 0) checkPlayer
     moveMonsters
     updateDisplay
     done <- processEvent
-    unless done play
+    unless done (play (frame + 1))
 
 processEvent :: Game Bool
 processEvent = do
@@ -286,6 +294,33 @@ moveMonsters = do
     randomDeltas <- sequence $ replicate monsterCount $ (\dx dy z -> (dx, dy, z == 0)) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
     let newMonsters = zipWith (\m (dx, dy, move) -> let newCoord = (monsterX m + dx, monsterY m + dy) in m { monsterCoord = if geo ! newCoord == EmptySpace && move then newCoord else monsterCoord m }) theMonsters randomDeltas
     put $ world { monsters = newMonsters }
+
+checkAttack :: Game ()
+checkAttack = do
+    world <- get
+    thePlayer <- gets player
+    theMonsters <- gets monsters
+    let newMonsters = map (\m -> checkMonsterAttacked m thePlayer) theMonsters
+        validMonsters = filter (\m -> monsterHealth (monsterStats m) > 0) newMonsters
+    put $ world { monsters = validMonsters }
+
+checkPlayerAttacked :: Monster -> Player -> Player
+checkPlayerAttacked m@(Monster (mx, my) (MonsterStats name mhealth mdamage) haskeym) p@(Player (px, py) phealth weapon potions haskey counter score dir)
+    | (mx == px) && (my == py) = (Player (px, py) (phealth - mdamage) weapon potions haskey counter score dir)
+    | otherwise = (Player (px, py) phealth weapon potions haskey counter score dir)
+
+checkPlayer :: Game ()
+checkPlayer = do
+    world <- get
+    thePlayer <- gets player
+    theMonsters <- gets monsters
+    let newPlayer = foldr checkPlayerAttacked thePlayer theMonsters
+    put $ world { player = newPlayer }
+
+checkMonsterAttacked :: Monster -> Player -> Monster
+checkMonsterAttacked (Monster (x, y) (MonsterStats name mhealth mdamage) haskey) p@(Player _ _ (Weapon _ wattack) _ _ _ _ _)
+    | (x == (fst (getSwordCoords p))) && (y == (snd (getSwordCoords p))) = (Monster (x, y) (MonsterStats name (mhealth - wattack) mdamage) haskey)
+    | otherwise = (Monster (x, y) (MonsterStats name mhealth mdamage) haskey)
 
 updateDisplay :: Game ()
 updateDisplay = do
@@ -365,7 +400,7 @@ usePotion :: Game ()
 usePotion = do
     world <- get
     let Player (x, y) health weapon potions key ani score dir = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score dir}
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + potionHealing) weapon (potions - 1) key ani score dir}
 
 addPotion :: Game ()
 addPotion = do
@@ -427,6 +462,21 @@ generateSword (Player (x, y) _ _ _ _ a _ dir)
     | (dir == Up) && (a > 0) && (a <= animationConstant)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
     | otherwise = V.emptyImage
 
+getSwordCoords :: Player -> Coord
+getSwordCoords (Player (x, y) _ _ _ _ a _ dir)
+    | (dir == Right) && (a > 2 * animationConstant) && (a < 3 * animationConstant) = ((x + 1), (y + 1))
+    | (dir == Right) && (a > animationConstant) && (a <= 2 * animationConstant)    = ((x + 1), y)
+    | (dir == Right) && (a > 0) && (a <= animationConstant)                        = ((x + 1), (y - 1))
+    | (dir == Left) && (a > 2 * animationConstant) && (a < 3 * animationConstant)  = ((x - 1), (y - 1))
+    | (dir == Left) && (a > animationConstant) && (a <= 2 * animationConstant)     = ((x - 1), y)
+    | (dir == Left) && (a > 0) && (a <= animationConstant)                         = ((x - 1), (y - 1))
+    | (dir == Down) && (a > 2 * animationConstant) && (a < 3 * animationConstant)  = ((x + 1), (y + 1))
+    | (dir == Down) && (a > animationConstant) && (a <= 2 * animationConstant)     = (x, (y + 1))
+    | (dir == Down) && (a > 0) && (a <= animationConstant)                         = ((x - 1), (y + 1))
+    | (dir == Up) && (a > 2 * animationConstant) && (a < 3 * animationConstant)    = ((x + 1), (y - 1))
+    | (dir == Up) && (a > animationConstant) && (a <= 2 * animationConstant)       = (x, (y - 1))
+    | (dir == Up) && (a > 0) && (a <= animationConstant)                           = ((x - 1), (y - 1))
+    | otherwise = (0, 0)
 monsterSpawnLocations :: Geo -> [Coord]
 monsterSpawnLocations geo = [i | (i, e) <- assocs geo, e == EmptySpace]
 
