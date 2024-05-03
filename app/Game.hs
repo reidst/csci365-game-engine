@@ -88,6 +88,7 @@ type Game = RWST V.Vty () World IO
 type Geo = Array Coord LevelPiece
 type Coord = (Int, Int)
 
+-- These count/frequency variables are all per room
 chestFrequency :: Int
 chestFrequency = 15
 
@@ -143,7 +144,7 @@ main = do
     (_finalWorld, ()) <- execRWST (play 0) vty world0
     V.shutdown vty
 
--- |Generate a level randomly using the specified difficulty.  Higher
+-- Generate a level randomly using the specified difficulty.  Higher
 -- difficulty means the level will have more rooms and cover a larger area.
 mkLevel :: Int -> IO Level
 mkLevel difficulty = do
@@ -153,13 +154,9 @@ mkLevel difficulty = do
         randomP = (,) <$> randomRIO (2, levelWidth-3) <*> randomRIO (2, levelHeight-3)
     start <- randomP
     end <- randomP
-    -- first the base geography: all rocks
     let baseGeo = array ((0,0), (levelWidth-1, levelHeight-1))
                         [((x,y),Rock) | x <- [0..levelWidth-1], y <- [0..levelHeight-1]]
-        -- next the empty spaces that make the rooms
-    -- for this we generate a number of center points
     centers <- replicateM (roomCount difficulty) randomP
-    -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
     doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
@@ -178,7 +175,7 @@ spawnMonsters level = do
         firstMonster = (head monstersNoKey) { monsterHasKey = True }
     return $ firstMonster : tail monstersNoKey
 
--- |Add a room to a geography and return a new geography.  Adds a
+-- Add a room to a geography and return a new geography.  Adds a
 -- randomly-sized room centered at the specified coordinates.
 addRoom :: Int
         -> Int
@@ -204,6 +201,7 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
           // room
           // (if hasChest then chest else [])
 
+-- Randomly generates ChestContents to be put in a Chest
 generateChestContents :: IO ChestContents
 generateChestContents = do
     potionWeapon <- randomRIO (0, 2) :: IO Int
@@ -211,6 +209,7 @@ generateChestContents = do
     then ChestPotion <$> randomRIO (1, 3)
     else ChestWeapon <$> getRandomWeapon
 
+-- What everything looks like!
 playerA, rockA, monsterA, chestA :: V.Attr
 playerA   = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.blue
 rockA    = V.defAttr `V.withBackColor` V.black `V.withForeColor` V.white
