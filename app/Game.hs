@@ -120,6 +120,9 @@ initialPlayerPotions = 3
 initialPlayerWeapon :: Weapon
 initialPlayerWeapon = Weapon "Hand" 5
 
+potionHealing :: Int
+potionHealing = 10
+
 animationConstant :: Int
 animationConstant = 15
 
@@ -403,7 +406,7 @@ usePotion :: Game ()
 usePotion = do
     world <- get
     let Player (x, y) health weapon potions key ani score dir = player world
-    when (potions > 0) $ put $ world { player = Player (x, y) (health + 5) weapon (potions - 1) key ani score dir}
+    when (potions > 0) $ put $ world { player = Player (x, y) (health + potionHealing) weapon (potions - 1) key ani score dir}
 
 addPotion :: Game ()
 addPotion = do
