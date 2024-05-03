@@ -421,8 +421,9 @@ worldImages = do
     let monsterImages = map (\m -> V.translate (monsterX m) (monsterY m)
                         (V.char monsterA $ monsterChar m)) theMonsters
     let swordImage = generateSword thePlayer
-    return $ [playerImage, swordImage] ++ monsterImages ++
-             [levelGeoImage theLevel]
+    return $ monsterImages
+          ++ [playerImage, swordImage]
+          ++ [levelGeoImage theLevel]
 
 -- Gets the monster's character
 monsterChar :: Monster -> Char
