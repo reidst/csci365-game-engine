@@ -61,14 +61,11 @@ data Level = Level
     }
     deriving (Show,Eq)
 
-newtype Door = Door Bool
-    deriving (Show,Eq)
-
 data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
     Chest      :: ChestContents -> LevelPiece
-    DoorPiece :: Door -> LevelPiece
+    Door       :: LevelPiece
     deriving (Show, Eq)
 
 data ChestContents where
@@ -93,7 +90,7 @@ chestFrequency :: Int
 chestFrequency = 15
 
 monsterCount :: Int -> Int
-monsterCount difficulty = difficulty ^ 2 + 5
+monsterCount difficulty = 2 * difficulty ^ 2 - 15
 
 roomCount :: Int -> Int
 roomCount difficulty = 2 ^ difficulty + 20 * difficulty
@@ -141,8 +138,11 @@ main = do
     monsters0 <- spawnMonsters level0
     let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant * 3) 0 Right
         world0 = World player0 level0 monsters0
-    (_finalWorld, ()) <- execRWST (play 0) vty world0
+    (finalWorld, ()) <- execRWST (play 0) vty world0
+    let finalScore = score $ player finalWorld
+        finalLevel = levelDifficulty (level finalWorld) - 3
     V.shutdown vty
+    putStrLn $ "Dead! :,(\nYou descended " ++ show finalLevel ++ " floors and scored " ++ show finalScore ++ " points.\nThanks for playing!"
 
 -- Generate a level randomly using the specified difficulty.  Higher
 -- difficulty means the level will have more rooms and cover a larger area.
@@ -160,7 +160,7 @@ mkLevel difficulty = do
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
     doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
-    let door = [(doorCoord, DoorPiece (Door False))]
+    let door = [(doorCoord, Door)]
 
     return $ Level difficulty start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
@@ -272,11 +272,7 @@ movePlayer dx dy = do
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
-        DoorPiece (Door False) -> when hasKey $ do
-            let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
-            let newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions hasKey ani score (getDirection dx dy), level = newLevel }
-        DoorPiece (Door True) -> do
+        Door -> when hasKey $ do
             let newDifficulty = ((+1) . levelDifficulty . level) world
             newLevel <- liftIO $ mkLevel newDifficulty
             newMonsters <- liftIO $ spawnMonsters newLevel
@@ -289,7 +285,7 @@ moveMonsters = do
     theMonsters <- gets monsters
     geo <- gets $ levelGeo . level
     let monsterCount = length theMonsters
-    randomDeltas <- sequence $ replicate monsterCount $ (\dx dy z -> (dx, dy, z == 0)) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
+    randomDeltas <- sequence $ replicate monsterCount $ (\dir z -> ([1, 0, -1, 0] !! dir, [0, 1, 0, -1] !! dir, z == 0)) <$> randomRIO (0, 3 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
     let newMonsters = zipWith (\m (dx, dy, move) -> let newCoord = (monsterX m + dx, monsterY m + dy) in m { monsterCoord = if geo ! newCoord == EmptySpace && move then newCoord else monsterCoord m }) theMonsters randomDeltas
     put $ world { monsters = newMonsters }
 
@@ -369,8 +365,7 @@ imageForGeo (Chest ChestEmpty) =
     V.char chestA 'X'
 imageForGeo (Chest _) =
     V.char chestA '?'
-imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
-imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
+imageForGeo Door = V.char playerA 'D'
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
