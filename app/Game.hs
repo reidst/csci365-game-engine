@@ -123,6 +123,9 @@ initialPlayerWeapon = Weapon "Hand" 5
 animationConstant :: Int
 animationConstant = 15
 
+playerConstant :: Int
+playerConstant = 75
+
 main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
@@ -211,6 +214,7 @@ play frame = do
     thePlayer <- gets player
     incrementAttack thePlayer
     when (frame `mod` animationConstant == 0) checkAttack
+    when (frame `mod` playerConstant == 0) checkPlayer
     moveMonsters
     updateDisplay
     done <- processEvent
@@ -302,6 +306,19 @@ checkAttack = do
     let newMonsters = map (\m -> checkMonsterAttacked m thePlayer) theMonsters
         validMonsters = filter (\m -> monsterHealth (monsterStats m) > 0) newMonsters
     put $ world { monsters = validMonsters }
+
+checkPlayerAttacked :: Monster -> Player -> Player
+checkPlayerAttacked m@(Monster (mx, my) (MonsterStats name mhealth mdamage) haskeym) p@(Player (px, py) phealth weapon potions haskey counter score dir)
+    | (mx == px) && (my == py) = (Player (px, py) (phealth - mdamage) weapon potions haskey counter score dir)
+    | otherwise = (Player (px, py) phealth weapon potions haskey counter score dir)
+
+checkPlayer :: Game ()
+checkPlayer = do
+    world <- get
+    thePlayer <- gets player
+    theMonsters <- gets monsters
+    let newPlayer = foldr checkPlayerAttacked thePlayer theMonsters
+    put $ world { player = newPlayer }
 
 checkMonsterAttacked :: Monster -> Player -> Monster
 checkMonsterAttacked (Monster (x, y) (MonsterStats name mhealth mdamage) haskey) p@(Player _ _ (Weapon _ wattack) _ _ _ _ _)
