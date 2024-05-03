@@ -45,6 +45,7 @@ data Weapon = Weapon
 data World = World
     { player :: Player
     , level :: Level
+    , monsters :: [Monster]
     }
     deriving (Show,Eq)
 
@@ -89,8 +90,8 @@ type Coord = (Int, Int)
 chestFrequency :: Int
 chestFrequency = 15
 
-monsterFrequency :: Int
-monsterFrequency = 50
+monsterCount :: Int
+monsterCount = 50
 
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
@@ -123,7 +124,9 @@ main :: IO ()
 main = do
     vty <- mkVty V.defaultConfig
     level0 <- mkLevel 8
-    let world0 = World (Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False (animationConstant) 0 Right) level0
+    monsters0 <- spawnMonsters level0
+    let player0 = Player (levelStart level0) initialPlayerHealth initialPlayerWeapon initialPlayerPotions False 0 0 Right
+        world0 = World player0 level0 monsters0
     (_finalWorld, ()) <- execRWST play vty world0
     V.shutdown vty
 
@@ -150,6 +153,14 @@ mkLevel difficulty = do
 
     return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
+spawnMonsters :: Level -> IO [Monster]
+spawnMonsters level = do
+    let allSpawnLocations = monsterSpawnLocations $ levelGeo level
+    spawnLocations <- sequence $ replicate monsterCount $ (allSpawnLocations !!) <$> randomRIO (0, length allSpawnLocations - 1)
+    stats <- sequence $ replicate monsterCount $ (possibleMonsters !!) <$> randomRIO (0, length possibleMonsters - 1)
+    let monstersNoKey = zipWith (\loc stat -> Monster loc stat False) spawnLocations stats
+        firstMonster = (head monstersNoKey) { monsterHasKey = True }
+    return $ firstMonster : tail monstersNoKey
 
 -- |Add a room to a geography and return a new geography.  Adds a
 -- randomly-sized room centered at the specified coordinates.
@@ -294,9 +305,14 @@ worldImages :: Game [V.Image]
 worldImages = do
     thePlayer <- gets player
     theLevel <- gets level
+    theMonsters <- gets monsters
     let playerImage = V.translate (playerX thePlayer) (playerY thePlayer) (V.char playerA '@')
+    let monsterImages = map (\m -> V.translate (monsterX m) (monsterY m) (V.char monsterA $ monsterChar m)) theMonsters
     let swordImage = generateSword thePlayer
-    return [playerImage, swordImage, levelGeoImage theLevel]
+    return $ [playerImage, swordImage] ++ monsterImages ++ [levelGeoImage theLevel]
+
+monsterChar :: Monster -> Char
+monsterChar = head . monsterName . monsterStats
 
 imageForGeo :: LevelPiece -> V.Image
 imageForGeo EmptySpace = V.char (V.defAttr `V.withBackColor` V.black) ' '
@@ -307,7 +323,6 @@ imageForGeo (Chest _) =
     V.char chestA '?'
 imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
 imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
-
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
@@ -405,11 +420,14 @@ generateSword (Player (x, y) _ _ _ _ a _ dir)
     | (dir == Up) && (a > 0) && (a <= animationConstant)      = V.translate (x - 1) (y - 1) (V.char swordA '\\')
     | otherwise = V.emptyImage
 
-monstersX :: Monster -> Int
-monstersX = fst . monsterCoord
+monsterSpawnLocations :: Geo -> [Coord]
+monsterSpawnLocations geo = [i | (i, e) <- assocs geo, e == EmptySpace]
 
-monstersY :: Monster -> Int
-monstersY = snd . monsterCoord
+monsterX :: Monster -> Int
+monsterX = fst . monsterCoord
+
+monsterY :: Monster -> Int
+monsterY = snd . monsterCoord
 
 playerInfoImage :: Player -> V.Image
 playerInfoImage player = V.string V.defAttr ("Health: " ++ show (playerHealth player) ++ "  Potions: " ++ show (playerPotions player) ++ "  Weapon: " ++ weaponName (currentWeapon player) ++ "  Power: " ++ show (weaponAttack $ currentWeapon player) ++ "  Key: " ++ (if playerHasKey player then "✓  " else "X  ") ++ "Score: " ++ show (score player))
