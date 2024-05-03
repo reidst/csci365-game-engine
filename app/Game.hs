@@ -178,8 +178,8 @@ mkLevel difficulty = do
 getDoorCoord :: Geo -> [(Int, Int)] -> Int -> Int -> IO Coord
 getDoorCoord geo edgeSpaces levelWidth levelHeight = do
     let randomIndex = randomRIO (0, length edgeSpaces - 1)
-    index <- randomIndex
-    let possDoorCoord = edgeSpaces !! index
+    ri <- randomIndex
+    let possDoorCoord = edgeSpaces !! ri
     let neighbor = case possDoorCoord of
             (0,y) -> (1,y)
             (x,0) -> (x,1)
