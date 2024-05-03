@@ -146,7 +146,7 @@ mkLevel difficulty = do
     -- generate rooms for all those points, plus the start and end
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
-    doorCoord <- randomRIO (head emptySpaces, last emptySpaces)
+    doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
     let door = [(doorCoord, DoorPiece (Door False))]
 
     return $ Level start end (geo // door) doorCoord (buildGeoImage (geo // door))
