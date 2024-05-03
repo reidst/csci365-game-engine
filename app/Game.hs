@@ -288,7 +288,7 @@ moveMonsters = do
     theMonsters <- gets monsters
     geo <- gets $ levelGeo . level
     let monsterCount = length theMonsters
-    randomDeltas <- sequence $ replicate monsterCount $ (\dx dy z -> (dx, dy, z == 0)) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
+    randomDeltas <- sequence $ replicate monsterCount $ (\dir z -> ([1, 0, -1, 0] !! dir, [0, 1, 0, -1] !! dir, z == 0)) <$> randomRIO (0, 3 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
     let newMonsters = zipWith (\m (dx, dy, move) -> let newCoord = (monsterX m + dx, monsterY m + dy) in m { monsterCoord = if geo ! newCoord == EmptySpace && move then newCoord else monsterCoord m }) theMonsters randomDeltas
     put $ world { monsters = newMonsters }
 
