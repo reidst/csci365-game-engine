@@ -61,14 +61,11 @@ data Level = Level
     }
     deriving (Show,Eq)
 
-newtype Door = Door Bool
-    deriving (Show,Eq)
-
 data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
     Chest      :: ChestContents -> LevelPiece
-    DoorPiece :: Door -> LevelPiece
+    Door       :: LevelPiece
     deriving (Show, Eq)
 
 data ChestContents where
@@ -92,7 +89,7 @@ chestFrequency :: Int
 chestFrequency = 15
 
 monsterCount :: Int -> Int
-monsterCount difficulty = difficulty ^ 2 + 5
+monsterCount difficulty = 2 * difficulty ^ 2 - 15
 
 roomCount :: Int -> Int
 roomCount difficulty = 2 ^ difficulty + 20 * difficulty
@@ -163,7 +160,7 @@ mkLevel difficulty = do
     geo <- foldM (addRoom levelWidth levelHeight) baseGeo (start : end : centers)
     let emptySpaces = [(x, y) | x <- [0..levelWidth-1], y <- [0..levelHeight-1], geo ! (x, y) == EmptySpace]
     doorCoord <- (emptySpaces !!) <$> randomRIO (0, length emptySpaces - 1)
-    let door = [(doorCoord, DoorPiece (Door False))]
+    let door = [(doorCoord, Door)]
 
     return $ Level difficulty start end (geo // door) doorCoord (buildGeoImage (geo // door))
 
@@ -275,11 +272,7 @@ movePlayer dx dy = do
             newGeo = levelGeo (level world) // [((x', y'), Chest ChestEmpty)]
             newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
             in put $ world { player = newPlayer, level = newLevel }
-        DoorPiece (Door False) -> when haskey $ do
-            let newGeo = levelGeo (level world) // [((x', y'), DoorPiece (Door True))]
-            let newLevel = (level world) { levelGeo = newGeo, levelGeoImage = buildGeoImage newGeo }
-            put $ world { player = Player (x, y) health weapon potions haskey ani score (getDirection dx dy), level = newLevel }
-        DoorPiece (Door True) -> do
+        Door -> when haskey $ do
             let newDifficulty = ((+1) . levelDifficulty . level) world
             newLevel <- liftIO $ mkLevel newDifficulty
             newMonsters <- liftIO $ spawnMonsters newLevel
@@ -372,8 +365,7 @@ imageForGeo (Chest ChestEmpty) =
     V.char chestA 'X'
 imageForGeo (Chest _) =
     V.char chestA '?'
-imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
-imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
+imageForGeo Door = V.char playerA 'D'
 
 buildGeoImage :: Geo -> V.Image
 buildGeoImage geo =
