@@ -306,9 +306,9 @@ checkAttack = do
     put $ world { monsters = validMonsters, player = newPlayer }
 
 checkPlayerAttacked :: Monster -> Player -> Player
-checkPlayerAttacked m@(Monster (mx, my) (MonsterStats name mhealth mdamage) hasKeyM) p@(Player (px, py) phealth weapon potions hasKey counter score dir)
-    | (mx == px) && (my == py) = (Player (px, py) (phealth - mdamage) weapon potions hasKey counter score dir)
-    | otherwise = (Player (px, py) phealth weapon potions hasKey counter score dir)
+checkPlayerAttacked m@(Monster (mx, my) (MonsterStats name mHealth mDamage) hasKeyM) p@(Player (px, py) pHealth weapon potions hasKey counter score dir)
+    | (mx == px) && (my == py) = (Player (px, py) (pHealth - mDamage) weapon potions hasKey counter score dir)
+    | otherwise = (Player (px, py) pHealth weapon potions hasKey counter score dir)
 
 checkPlayer :: Game ()
 checkPlayer = do
@@ -325,9 +325,9 @@ isPlayerDead = do
     if (playerHealth thePlayer) <= 0 then return True else return False
 
 checkMonsterAttacked :: Monster -> Player -> Monster
-checkMonsterAttacked (Monster (x, y) (MonsterStats name mhealth mdamage) hasKey) p@(Player _ _ (Weapon _ wattack) _ _ _ _ _)
-    | (x == (fst (getSwordCoords p))) && (y == (snd (getSwordCoords p))) = (Monster (x, y) (MonsterStats name (mhealth - wattack) mdamage) hasKey)
-    | otherwise = (Monster (x, y) (MonsterStats name mhealth mdamage) hasKey)
+checkMonsterAttacked (Monster (x, y) (MonsterStats name mHealth mDamage) hasKey) p@(Player _ _ (Weapon _ wAttack) _ _ _ _ _)
+    | (x == (fst (getSwordCoords p))) && (y == (snd (getSwordCoords p))) = (Monster (x, y) (MonsterStats name (mHealth - wAttack) mDamage) hasKey)
+    | otherwise = (Monster (x, y) (MonsterStats name mHealth mDamage) hasKey)
 
 updateDisplay :: Game ()
 updateDisplay = do
