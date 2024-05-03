@@ -64,7 +64,6 @@ data LevelPiece where
     EmptySpace :: LevelPiece
     Rock       :: LevelPiece
     Chest      :: ChestContents -> LevelPiece
-    RMonster   :: Monster -> LevelPiece
     DoorPiece :: Door -> LevelPiece
     deriving (Show, Eq)
 
@@ -163,17 +162,11 @@ addRoom levelWidth levelHeight geo (centerX, centerY) = do
     chestX <- randomRIO (xMin, xMax - 1)
     chestY <- randomRIO (yMin, yMax - 1)
     chestContents <- generateChestContents
-    hasMonster <- (< monsterFrequency) <$> randomRIO (0, 99)
-    monsterX <- randomRIO (xMin, xMax - 1)
-    monsterY <- randomRIO (yMin, yMax - 1)
-    randMonster <- getRandomMonster
     let room = [((x,y), EmptySpace) | x <- [xMin..xMax - 1], y <- [yMin..yMax - 1]]
         chest = [((chestX, chestY), Chest chestContents)]
-        monster = [((monsterX, monsterY), RMonster (Monster (monsterX, monsterY) randMonster False))]
     return $ geo
           // room
           // (if hasChest then chest else [])
-          // (if hasMonster then monster else [])
 
 generateChestContents :: IO ChestContents
 generateChestContents = do
@@ -303,11 +296,6 @@ imageForGeo (Chest ChestEmpty) =
     V.char chestA 'X'
 imageForGeo (Chest _) =
     V.char chestA '?'
-imageForGeo (RMonster m) = case getMonsterName m of
-    "Goblin"         -> V.char monsterA 'G'
-    "Witch"          -> V.char monsterA 'W'
-    "Sentient Chair" -> V.char monsterA 'C'
-    "Troll"          -> V.char monsterA 'T'
 imageForGeo (DoorPiece (Door False)) = V.char playerA 'D'
 imageForGeo (DoorPiece  (Door True)) = V.char playerA ' '
 
