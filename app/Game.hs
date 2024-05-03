@@ -93,6 +93,9 @@ chestFrequency = 15
 monsterCount :: Int
 monsterCount = 50
 
+monsterSlowness :: Int
+monsterSlowness = 10
+
 possibleMonsters :: [MonsterStats]
 possibleMonsters = [MonsterStats "Goblin" 20 5,
                     MonsterStats "Sentient Chair" 10 2,
@@ -286,8 +289,8 @@ moveMonsters = do
     theMonsters <- gets monsters
     geo <- gets $ levelGeo . level
     let monsterCount = length theMonsters
-    randomDeltas <- sequence $ replicate monsterCount $ (,) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int)
-    let newMonsters = zipWith (\m (dx, dy) -> m { monsterCoord = if geo ! (monsterX m + dx, monsterY m + dy) == EmptySpace then (monsterX m + dx, monsterY m + dy) else monsterCoord m }) theMonsters randomDeltas
+    randomDeltas <- sequence $ replicate monsterCount $ (\dx dy z -> (dx, dy, z == 0)) <$> randomRIO (-1, 1 :: Int) <*> randomRIO (-1, 1 :: Int) <*> randomRIO (0, monsterSlowness :: Int)
+    let newMonsters = zipWith (\m (dx, dy, move) -> let newCoord = (monsterX m + dx, monsterY m + dy) in m { monsterCoord = if geo ! newCoord == EmptySpace && move then newCoord else monsterCoord m }) theMonsters randomDeltas
     put $ world { monsters = newMonsters }
 
 updateDisplay :: Game ()
